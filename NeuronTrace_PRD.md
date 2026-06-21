@@ -212,7 +212,9 @@ Building this as a standalone, kernel-resident tier — rather than folding task
 
 ### 7.1 Scope
 
-Graph mode is the architectural alternative users explicitly opt into via a runtime flag. Kernel-side code is reduced to event emission only; all matching, label propagation, and decision logic move to a userspace graph engine. This trades inline kernel-decision speed for unbounded rule expressiveness — a deliberate, disclosed trade-off, not a future default.
+Graph mode is the architectural alternative users explicitly opt into via a runtime flag. Unlike the naive "hold a syscall in-kernel waiting for userspace" approach (which risks deadlocks and kernel thread exhaustion), NeuronTrace uses a **split-decision architecture**: the BPF program still makes synchronous, sub-microsecond decisions using a verdict cache populated asynchronously by the userspace graph engine. The graph engine runs ahead of the agent, predicting and pre-caching deny verdicts before the dangerous syscall is even attempted.
+
+This trades the simplicity of kernel-only matching for unbounded rule expressiveness — a deliberate, disclosed trade-off, not a future default.
 
 ### 7.2 Use Case
 
@@ -228,23 +230,115 @@ neurontrace run claude -p "..." --enforcement=kernel --task-scoping=on    # gen-
 neurontrace run claude -p "..." --enforcement=graph                       # opt-in
 ```
 
-- Each mode loads a distinct BPF program variant. Kernel mode's program (with or without task-scoping) contains compiled rule-matching logic; graph mode's program only emits structured events to the ring buffer. They are not the same program with an internal branch — combining all code paths into a single BPF program would defeat the verifier-simplicity and attack-surface benefits kernel mode exists for.
+- Each mode loads a distinct BPF program variant. Kernel mode's program (with or without task-scoping) contains compiled rule-matching logic; graph mode's program performs label checks, generation-tag checks, AND verdict-cache lookups — then emits structured events to the ring buffer for graph-engine consumption. They are not the same program with an internal branch — combining all code paths into a single BPF program would defeat the verifier-simplicity and attack-surface benefits kernel mode exists for.
 - **Rule compatibility:** flat-taint and generation-tagged rules written for kernel mode remain valid under graph mode without rewriting, since they are a strict subset of what graph assertions can express. New graph-assertion syntax (scoped labels, path queries, defer) is additive and only available when graph mode is active — switching modes never silently breaks an existing rule file.
 - The CLI surfaces which mode is active in its status output at all times, so a user auditing logs later can tell which guarantees were in force during a given session.
 
-### 7.4 Label Model
+### 7.4 Split-Decision Architecture
+
+The core design principle: **never hold a syscall in-kernel waiting for userspace**. Instead, use a verdict cache with configurable miss policies.
+
+#### 7.4.1 Fast Path (BPF, synchronous, <1μs)
+
+```
+┌─────────────────────────────────────────────────────┐
+│  BPF LSM Hook (synchronous, <1μs)                   │
+│                                                      │
+│  1. Label check         (kernel mode rules)          │
+│  2. Generation-tag check (if task-scoping enabled)   │
+│  3. Verdict cache lookup (BPF_MAP_TYPE_LRU_HASH)     │
+│     - HIT + ALLOW → allow                           │
+│     - HIT + DENY  → deny (return -EPERM)            │
+│     - HIT + DEFER → send SIGSTOP to process tree    │
+│     - MISS        → apply default_on_miss policy    │
+│  4. Emit event to ring buffer (always, for graph)    │
+└─────────────────────────────────────────────────────┘
+```
+
+The `default_on_miss` policy is configurable per-rule:
+
+- **`deny-on-miss`** — for high-risk actions (credential reads, network connects to unknown hosts, unlink of critical paths). Blocks first; if the graph engine later determines it was safe, the verdict cache is updated and the next identical attempt succeeds.
+- **`allow-on-miss`** — for low-risk actions where async analysis is acceptable (reading non-sensitive files, spawning allowlisted binaries).
+- **`defer-on-miss`** — for ambiguous actions requiring human approval (see Section 7.6).
+
+#### 7.4.2 Slow Path (Userspace Graph Engine, asynchronous, 1–50ms)
+
+```
+┌──────────────────────────────────────────────────────┐
+│  Userspace Graph Engine (async, 1-50ms)              │
+│                                                       │
+│  1. Consume ring buffer events                        │
+│  2. Update data-flow graph (nodes, edges, labels)     │
+│  3. Evaluate graph assertions against new state       │
+│  4. Write verdicts to BPF verdict_cache map           │
+│  5. Predictive warming (see 7.4.3)                    │
+│  6. On violation: emit feedback to agent hooks        │
+│  7. On defer: send notification, manage approval      │
+└──────────────────────────────────────────────────────┘
+```
+
+#### 7.4.3 Verdict Cache Warming (Predictive Enforcement)
+
+The graph engine does not merely react to events — it **predicts and pre-denies**. When it observes the agent read a secret-labeled file, it immediately writes deny verdicts into the BPF map for all network `connect()` targets not in the current allowlist. By the time the agent attempts exfiltration, the verdict is already cached — the syscall hits the BPF map, gets denied in-kernel, with zero userspace round-trip.
+
+This is the key performance insight: **graph mode's latency is amortized, not inline**. The first novel action pattern pays the cache-miss cost (handled by `default_on_miss`); all subsequent identical patterns hit the pre-warmed cache at kernel speed.
+
+Warming strategies:
+- **On secret read**: pre-deny all non-allowlisted network destinations
+- **On untrusted data ingest**: pre-deny exec of interpreters (curl|sh, python -c, etc.)
+- **On task boundary**: invalidate stale verdicts from previous task scope
+- **On graph assertion violation**: pre-deny the full exfiltration path (all intermediate nodes)
+
+#### 7.4.4 Full Architecture Diagram
+
+```
+                    ┌─────────────────────────┐
+                    │   Agent Process Tree     │
+                    │   (Claude Code, etc.)    │
+                    └────────────┬────────────┘
+                                 │ syscalls
+                    ┌────────────▼────────────┐
+                    │  BPF LSM Hooks          │
+                    │  ┌───────────────────┐  │
+                    │  │ 1. Label check    │  │  ← kernel mode (always runs)
+                    │  │ 2. Gen-tag check  │  │  ← if --task-scoping=on
+                    │  │ 3. Verdict cache  │  │  ← graph mode cache lookup
+                    │  │ 4. Default action │  │  ← deny/allow/defer on miss
+                    │  └───────┬───────────┘  │
+                    │          │ event         │
+                    └──────────┼──────────────┘
+                               │ ring buffer
+                    ┌──────────▼──────────────┐
+                    │  Userspace Graph Engine  │
+                    │  ┌───────────────────┐  │
+                    │  │  Event Ingest     │  │
+                    │  │       │           │  │
+                    │  │  Graph Update     │  │  ← maintains full data-flow DAG
+                    │  │       │           │  │
+                    │  │  Assert Eval      │  │  ← path queries, reachability
+                    │  │       │           │  │
+                    │  │  Verdict Write    │──┼──→ BPF verdict_cache map (writeback)
+                    │  │       │           │  │
+                    │  │  Predictive Warm  │──┼──→ BPF verdict_cache map (pre-deny)
+                    │  │       │           │  │
+                    │  │  Feedback/Notify  │──┼──→ Agent hooks / Slack / SIGSTOP
+                    │  └───────────────────┘  │
+                    └─────────────────────────┘
+```
+
+### 7.5 Label Model
 
 Typed, scoped labels, available only in graph mode:
 
 ```rust
-Label {
-  origin: NodeId,
-  kind: LabelKind,        // Secret | TaskScope(id) | Untrusted | ToolOutput
-  ttl: Option<Generation>, // expires at a task/turn boundary
+struct Label {
+    origin: NodeId,
+    kind: LabelKind,        // Secret | TaskScope(id) | Untrusted | ToolOutput
+    ttl: Option<Generation>, // expires at a task/turn boundary
 }
 ```
 
-### 7.5 Rule Language
+### 7.6 Rule Language
 
 Graph assertions over label-flow paths, not just syscall-pattern matching:
 
@@ -252,29 +346,75 @@ Graph assertions over label-flow paths, not just syscall-pattern matching:
 contract: no-secret-exfil-via-any-path
 assert:
   not exists path(label: Secret -> label: Untrusted)
-effect: audit
+effect: deny
+default_on_miss: deny   # block immediately if verdict not cached
+
+contract: sensitive-delete-requires-approval
+assert:
+  not (action: unlink AND path matches "/critical/**")
+effect: defer
+timeout: 60s
+escalation: slack
 ```
 
-### 7.6 New Effect: defer
+### 7.7 The `defer` Effect — Process Freezing, Not Syscall Holding
 
-A fourth effect alongside kill/block/audit, available in graph mode: the gated action is held (via a BPF-LSM hold-and-release mechanism or a userspace approval gate) until a human or higher-trust-tier process acknowledges it, then released or killed. Addresses ambiguous actions where kill is too blunt and audit is too late — a gap neither kernel mode nor generation-tagging cover by design, since neither has a userspace decision point to hold against.
+A fourth effect alongside kill/block/audit. **Critical design decision:** `defer` does NOT hold a syscall inside a BPF-LSM hook waiting for userspace. Instead, it uses POSIX process signals:
 
-### 7.7 Flagship Demo
+```
+1. BPF sees action matching a `defer` rule (or verdict cache returns DEFER)
+2. BPF returns -EPERM (denies the specific syscall)
+3. BPF sends SIGSTOP to the process (freezes entire process tree)
+4. BPF emits event to ring buffer with defer flag
+5. Userspace picks it up → sends Slack/webhook/CLI notification
+6. Human approves → userspace sends SIGCONT + updates verdict cache to ALLOW
+7. Human denies (or timeout expires) → userspace sends SIGKILL
+```
 
-A multi-hop secret-exfiltration scenario: a credential read at one point in a session passes through two or three intermediate tool calls before an attempt to send it over the network. This is a violation class that ActPlane, NeuronTrace's kernel mode, and even generation-tagging cannot structurally express, since none of them trace paths through intermediate nodes — only graph mode can. This is the demo that justifies the tier's cost, distinct from generation-tagging's cross-task demo (Section 6.2), which is solved more cheaply.
+**Why this is safe:**
+- No kernel thread blocked waiting for userspace — the LSM hook returns immediately with -EPERM
+- Process is frozen at user-space level (standard POSIX signal), visible via `ps aux | grep T`
+- If NeuronTrace crashes, the frozen process remains in stopped state — a human can manually `kill -CONT <pid>` to recover. No invisible deadlock, no orphaned kernel state.
+- Timeout is a simple userspace timer, not a BPF helper with verifier constraints
+- The denied syscall can be retried by the agent after SIGCONT (the agent sees EPERM + a structured feedback message explaining the hold)
 
-### 7.8 Disclosed Costs (Documentation Requirement)
+**Limitation:** `defer` denies-then-freezes, meaning the triggering action was already blocked. For actions where you want "allow after approval," use a two-step pattern: first attempt is denied with a `defer` hold, approval updates the verdict cache to ALLOW, agent retries and succeeds on the cache hit.
+
+### 7.8 Flagship Demo
+
+A multi-hop secret-exfiltration scenario: a credential read at one point in a session passes through two or three intermediate tool calls before an attempt to send it over the network.
+
+1. Agent reads `~/.ssh/id_rsa` → graph engine labels the process tree with `Secret(origin=ssh_key)`
+2. Agent writes content to `/tmp/scratch.txt` → label propagates to file node
+3. Agent spawns `curl` reading from `/tmp/scratch.txt` → label propagates to curl process
+4. `curl` calls `connect("attacker.com:443")` → **verdict cache already contains DENY** (pre-warmed at step 1 for all non-allowlisted destinations)
+5. BPF denies inline, no userspace round-trip needed for the actual block
+
+This is a violation class that ActPlane, NeuronTrace's kernel mode, and even generation-tagging cannot structurally express, since none of them trace paths through intermediate nodes — only graph mode can. The predictive cache warming means the block still happens at kernel speed despite being a graph-mode decision.
+
+### 7.9 Fail-Safe Behavior
+
+| Scenario | Behavior |
+|---|---|
+| Userspace engine crashes | BPF continues enforcing stale verdict cache (conservative: deny entries persist, allow entries age out via LRU). Kernel-mode and gen-tag rules continue independently. Loud warning emitted to stderr/syslog. |
+| Verdict cache full (LRU eviction) | Oldest entries evicted; new actions hit `default_on_miss` policy. Deny-on-miss rules remain safe; allow-on-miss rules degrade to kernel-mode-only protection. |
+| Ring buffer overflow (events dropped) | Graph state becomes stale — may miss label propagation. Mitigated by: (a) generous ring buffer sizing (1MB+), (b) drop-count metric surfaced to CLI, (c) conservative defaults on cache miss. |
+| Agent retries after EPERM | Expected behavior. If verdict cache hasn't changed, retry is denied again. If approval granted (defer) or graph state updated (false positive), retry succeeds. |
+
+### 7.10 Disclosed Costs (Documentation Requirement)
 
 Because graph mode is opt-in rather than default, its costs must be stated plainly in user-facing documentation, not just in this PRD:
 
-- Added per-decision latency from the BPF-LSM hold-and-userspace-round-trip path, with published benchmark numbers comparing kernel mode, generation-tagged mode, and graph mode under equivalent load.
-- A larger trust boundary: a persistent userspace process making security decisions is a bigger attack surface than kernel-only matching; the kernel↔userspace channel itself needs explicit hardening and should be documented as part of the threat model, not assumed safe.
-- Higher resource footprint (persistent userspace process maintaining live graph state per traced process tree) versus kernel mode's mostly kernel-resident operation.
+- **Amortized latency, not zero latency:** The first occurrence of a novel action pattern pays the cache-miss cost (governed by `default_on_miss`). Subsequent identical patterns hit the cache at kernel speed. Published benchmarks must compare: kernel mode (baseline), generation-tagged (near-zero overhead), graph mode cache-hit (near kernel speed), graph mode cache-miss (default_on_miss latency).
+- **Larger trust boundary:** A persistent userspace process making security decisions is a bigger attack surface than kernel-only matching. The kernel↔userspace writeback channel (BPF map updates) needs explicit hardening — a compromised graph engine could write ALLOW verdicts into the cache. Mitigation: the BPF program validates verdict entries against a signed rule fingerprint before accepting them.
+- **Higher resource footprint:** Persistent userspace process maintaining live graph state per traced process tree. Memory grows with graph complexity (number of nodes, edges, labels tracked). Bounded by configurable graph-size limits with oldest-edge eviction.
+- **Predictive warming is heuristic:** Pre-denied verdicts may produce false positives (legitimate network calls denied because a secret was read earlier). Users must tune allowlists or switch specific rules to `allow-on-miss` when false positive rate is unacceptable.
 
-### 7.9 Open Risks
+### 7.11 Open Risks
 
 - Validate against real agent traces before promoting graph mode beyond opt-in status: if generation-tagging (Section 6) turns out to cover the large majority of real cross-task violations, graph mode's marginal benefit narrows to genuinely rare multi-hop cases — worth confirming empirically before further investment.
 - Avoid feature creep that quietly makes graph mode the only fully-supported path — kernel mode and generation-tagging must remain first-class, equally maintained tiers, not legacy fallbacks.
+- The verdict-cache writeback path (userspace writing to BPF maps) is a privilege escalation vector if the graph engine process is compromised. Hardening options: (a) dedicated unprivileged helper that only accepts signed verdict structs, (b) BPF-side validation of a rule-fingerprint field in each verdict entry, (c) rate-limiting map updates to prevent cache-flooding attacks.
 
 ---
 
