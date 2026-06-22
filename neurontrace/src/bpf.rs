@@ -61,7 +61,7 @@ impl BpfEngine {
         for rule in &policy_set.rules {
             let key = rule.to_policy_key();
             let value = rule.to_policy_value();
-            policy_map.insert(&key, &value, 0)?;
+            policy_map.insert(key, value, 0)?;
         }
 
         info!(count = policy_set.rules.len(), "policy rules loaded");
@@ -104,7 +104,7 @@ impl BpfEngine {
         )?;
 
         let my_pid = std::process::id();
-        allowlist.insert(&my_pid, &1u8, 0)?;
+        allowlist.insert(my_pid, 1u8, 0)?;
         info!(pid = my_pid, "registered controller in PID allowlist");
         Ok(())
     }

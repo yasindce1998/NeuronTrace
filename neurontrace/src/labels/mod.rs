@@ -11,7 +11,7 @@ pub fn assign_label(bpf: &mut Ebpf, pid: u32, label: &str, generation: u32) -> R
     let mut label_map: HashMap<_, u32, ProcessLabels> =
         HashMap::try_from(bpf.map_mut("LABEL_MAP").context("LABEL_MAP not found")?)?;
 
-    let mut process_labels = label_map.get(&pid, 0).unwrap_or_else(|_| ProcessLabels {
+    let mut process_labels = label_map.get(&pid, 0).unwrap_or(ProcessLabels {
         labels: [LabelEntry {
             label: [0u8; MAX_LABEL_LEN],
             label_len: 0,
@@ -40,7 +40,7 @@ pub fn assign_label(bpf: &mut Ebpf, pid: u32, label: &str, generation: u32) -> R
     };
     process_labels.count += 1;
 
-    label_map.insert(&pid, &process_labels, 0)?;
+    label_map.insert(pid, process_labels, 0)?;
     info!(pid, label, generation, "label assigned to process");
     Ok(())
 }
