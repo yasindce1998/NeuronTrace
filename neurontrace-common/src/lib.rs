@@ -26,6 +26,7 @@ pub enum EventType {
     Ptrace = 5,
     Fork = 6,
     Exit = 7,
+    TaskKill = 8,
 }
 
 #[repr(C)]
@@ -143,6 +144,7 @@ pub mod user {
                 5 => EventType::Ptrace,
                 6 => EventType::Fork,
                 7 => EventType::Exit,
+                8 => EventType::TaskKill,
                 _ => EventType::Exec,
             }
         }
@@ -159,6 +161,7 @@ pub mod user {
                 EventType::Ptrace => write!(f, "ptrace"),
                 EventType::Fork => write!(f, "fork"),
                 EventType::Exit => write!(f, "exit"),
+                EventType::TaskKill => write!(f, "task_kill"),
             }
         }
     }

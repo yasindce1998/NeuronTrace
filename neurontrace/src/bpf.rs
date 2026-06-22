@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use anyhow::{Context, Result};
 use aya::maps::{Array, HashMap, RingBuf};
 use aya::programs::Lsm;
@@ -6,7 +8,12 @@ use neurontrace_common::{GenerationCounter, PolicyKey, PolicyValue};
 use tracing::info;
 
 use crate::events;
+use crate::feedback::FeedbackSender;
 use crate::policy::PolicySet;
+
+const PIN_BASE: &str = "/sys/fs/bpf/neurontrace";
+const PIN_PROGS: &str = "/sys/fs/bpf/neurontrace/progs";
+const PIN_MAPS: &str = "/sys/fs/bpf/neurontrace/maps";
 
 const LSM_HOOKS: &[(&str, &str)] = &[
     ("nt_exec_check", "bprm_check_security"),
@@ -15,6 +22,15 @@ const LSM_HOOKS: &[(&str, &str)] = &[
     ("nt_inode_rename", "inode_rename"),
     ("nt_socket_connect", "socket_connect"),
     ("nt_ptrace_check", "ptrace_access_check"),
+    ("nt_task_kill", "task_kill"),
+];
+
+const MAP_NAMES: &[&str] = &[
+    "POLICY_MAP",
+    "LABEL_MAP",
+    "GENERATION",
+    "EVENTS",
+    "PID_ALLOWLIST",
 ];
 
 pub struct BpfEngine {
@@ -35,6 +51,9 @@ impl BpfEngine {
     pub fn load_and_attach(&mut self) -> Result<()> {
         let btf = Btf::from_sys_fs()?;
 
+        std::fs::create_dir_all(PIN_PROGS).context("failed to create BPF pin directory for programs")?;
+        std::fs::create_dir_all(PIN_MAPS).context("failed to create BPF pin directory for maps")?;
+
         for (prog_name, hook_name) in LSM_HOOKS {
             let program: &mut Lsm = self
                 .bpf
@@ -44,10 +63,37 @@ impl BpfEngine {
 
             program.load(hook_name, &btf)?;
             program.attach()?;
-            info!(program = prog_name, hook = hook_name, "attached LSM hook");
+
+            let pin_path = format!("{PIN_PROGS}/{prog_name}");
+            program.pin(&pin_path)
+                .with_context(|| format!("failed to pin program '{prog_name}' to {pin_path}"))?;
+            info!(program = prog_name, hook = hook_name, pin = %pin_path, "attached and pinned LSM hook");
+        }
+
+        for map_name in MAP_NAMES {
+            let map = self
+                .bpf
+                .map_mut(map_name)
+                .with_context(|| format!("map '{map_name}' not found"))?;
+            let pin_path = format!("{PIN_MAPS}/{map_name}");
+            map.pin(&pin_path)
+                .with_context(|| format!("failed to pin map '{map_name}' to {pin_path}"))?;
+            info!(map = map_name, pin = %pin_path, "pinned BPF map");
         }
 
         self.register_self_in_allowlist()?;
+        Ok(())
+    }
+
+    pub fn unload() -> Result<()> {
+        let pin_base = Path::new(PIN_BASE);
+        if pin_base.exists() {
+            std::fs::remove_dir_all(pin_base)
+                .context("failed to remove pinned BPF programs/maps")?;
+            info!(path = PIN_BASE, "removed all pinned BPF programs and maps");
+        } else {
+            info!(path = PIN_BASE, "no pinned programs found — nothing to unload");
+        }
         Ok(())
     }
 
@@ -86,14 +132,14 @@ impl BpfEngine {
         Ok(new_gen)
     }
 
-    pub async fn run_event_loop(&mut self) -> Result<()> {
+    pub async fn run_event_loop(&mut self, feedback: &mut FeedbackSender) -> Result<()> {
         let ring_buf = RingBuf::try_from(
             self.bpf
                 .map_mut("EVENTS")
                 .context("EVENTS ring buffer not found")?,
         )?;
 
-        events::consume_events(ring_buf).await
+        events::consume_events(ring_buf, feedback).await
     }
 
     fn register_self_in_allowlist(&mut self) -> Result<()> {

@@ -61,6 +61,7 @@ pub enum PolicyEventType {
     Ptrace,
     Fork,
     Exit,
+    TaskKill,
 }
 
 impl PolicyEventType {
@@ -74,6 +75,7 @@ impl PolicyEventType {
             Self::Ptrace => EventType::Ptrace as u8,
             Self::Fork => EventType::Fork as u8,
             Self::Exit => EventType::Exit as u8,
+            Self::TaskKill => EventType::TaskKill as u8,
         }
     }
 }

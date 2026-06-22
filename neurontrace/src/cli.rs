@@ -23,6 +23,10 @@ pub enum Command {
         /// Path to the cgroup (e.g. /sys/fs/cgroup/neurontrace)
         #[arg(short, long)]
         cgroup: PathBuf,
+
+        /// Unix socket or file path for structured violation feedback
+        #[arg(long, default_value = "/run/neurontrace/feedback.sock")]
+        feedback: PathBuf,
     },
 
     /// Validate a policy file without loading BPF
@@ -34,4 +38,7 @@ pub enum Command {
 
     /// Bump the generation counter, invalidating all stale labels
     Bump,
+
+    /// Unload pinned BPF programs and maps, stopping enforcement
+    Unload,
 }

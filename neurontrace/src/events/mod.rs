@@ -3,9 +3,12 @@ use aya::maps::RingBuf;
 use neurontrace_common::{EventType, NtEvent, PolicyAction};
 use tracing::{error, info, warn};
 
-use crate::feedback;
+use crate::feedback::FeedbackSender;
 
-pub async fn consume_events(mut ring_buf: RingBuf<&mut aya::maps::MapData>) -> Result<()> {
+pub async fn consume_events(
+    mut ring_buf: RingBuf<&mut aya::maps::MapData>,
+    feedback: &mut FeedbackSender,
+) -> Result<()> {
     info!("event consumer started — waiting for violations");
 
     loop {
@@ -17,14 +20,14 @@ pub async fn consume_events(mut ring_buf: RingBuf<&mut aya::maps::MapData>) -> R
             }
 
             let event: &NtEvent = unsafe { &*(bytes.as_ptr() as *const NtEvent) };
-            handle_event(event);
+            handle_event(event, feedback);
         }
 
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     }
 }
 
-fn handle_event(event: &NtEvent) {
+fn handle_event(event: &NtEvent, feedback: &mut FeedbackSender) {
     let event_type = EventType::from(event.event_type);
     let action = PolicyAction::from(event.action_taken);
 
@@ -35,7 +38,7 @@ fn handle_event(event: &NtEvent) {
                 event = %event_type,
                 "BLOCKED syscall"
             );
-            feedback::report_violation(event);
+            feedback.report_violation(event);
         }
         PolicyAction::Kill => {
             error!(
@@ -47,7 +50,7 @@ fn handle_event(event: &NtEvent) {
                 nix::unistd::Pid::from_raw(event.pid as i32),
                 nix::sys::signal::Signal::SIGKILL,
             );
-            feedback::report_violation(event);
+            feedback.report_violation(event);
         }
         PolicyAction::Audit => {
             info!(
@@ -55,6 +58,7 @@ fn handle_event(event: &NtEvent) {
                 event = %event_type,
                 "AUDIT — allowed but logged"
             );
+            feedback.report_violation(event);
         }
         PolicyAction::Allow => {}
     }

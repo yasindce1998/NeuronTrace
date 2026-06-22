@@ -24,7 +24,11 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Command::Run { policy, cgroup } => {
+        Command::Run {
+            policy,
+            cgroup,
+            feedback: feedback_path,
+        } => {
             info!("loading policy from {}", policy.display());
             let policy_set = policy::load_policy(&policy)?;
 
@@ -36,8 +40,10 @@ async fn main() -> Result<()> {
             let cgroup_id = cgroup::setup_cgroup(&cgroup)?;
             info!(cgroup_id, "cgroup configured");
 
+            let mut feedback_sender = feedback::FeedbackSender::new(&feedback_path);
+
             info!("neurontrace enforcement active — default-deny enabled");
-            engine.run_event_loop().await?;
+            engine.run_event_loop(&mut feedback_sender).await?;
         }
         Command::Validate { policy } => {
             info!("validating policy: {}", policy.display());
@@ -54,6 +60,11 @@ async fn main() -> Result<()> {
             engine.load_and_attach()?;
             let new_gen = engine.bump_generation()?;
             println!("Generation bumped to {new_gen}");
+        }
+        Command::Unload => {
+            info!("unloading pinned BPF programs");
+            bpf::BpfEngine::unload()?;
+            println!("NeuronTrace enforcement stopped — BPF programs unpinned");
         }
     }
 

@@ -2,6 +2,7 @@
 #![no_main]
 #![deny(warnings)]
 
+mod helpers;
 mod hooks;
 mod maps;
 mod policy;
@@ -52,6 +53,14 @@ pub fn nt_socket_connect(ctx: LsmContext) -> i32 {
 #[lsm(hook = "ptrace_access_check")]
 pub fn nt_ptrace_check(ctx: LsmContext) -> i32 {
     match hooks::ptrace::handle_ptrace(&ctx) {
+        Ok(ret) => ret,
+        Err(_) => 0,
+    }
+}
+
+#[lsm(hook = "task_kill")]
+pub fn nt_task_kill(ctx: LsmContext) -> i32 {
+    match hooks::signal::handle_task_kill(&ctx) {
         Ok(ret) => ret,
         Err(_) => 0,
     }
