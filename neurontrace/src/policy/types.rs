@@ -170,3 +170,241 @@ impl PolicyActionType {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_policy(yaml: &str) -> PolicySet {
+        serde_yaml::from_str(yaml).unwrap()
+    }
+
+    #[test]
+    fn parse_minimal_policy() {
+        let p = make_policy(
+            r#"
+name: test
+description: minimal
+rules:
+  - event_type: exec
+    action: block
+"#,
+        );
+        assert_eq!(p.name, "test");
+        assert_eq!(p.rules.len(), 1);
+    }
+
+    #[test]
+    fn parse_path_and_argv_fields() {
+        let p = make_policy(
+            r#"
+name: test
+description: with filters
+rules:
+  - event_type: exec
+    action: allow
+    path: "/usr/bin/git"
+  - event_type: exec
+    action: allow
+    argv: "python*"
+  - event_type: exec
+    action: block
+"#,
+        );
+        assert_eq!(p.rules[0].path.as_deref(), Some("/usr/bin/git"));
+        assert_eq!(p.rules[0].argv, None);
+        assert_eq!(p.rules[1].argv.as_deref(), Some("python*"));
+        assert_eq!(p.rules[2].path, None);
+    }
+
+    #[test]
+    fn event_types_covered_counts_unique() {
+        let p = make_policy(
+            r#"
+name: test
+description: coverage
+rules:
+  - event_type: exec
+    action: allow
+    path: "/usr/bin/git"
+  - event_type: exec
+    action: block
+  - event_type: connect
+    action: block
+"#,
+        );
+        assert_eq!(p.event_types_covered(), 2);
+    }
+
+    #[test]
+    fn compiled_policy_exact_path_match() {
+        let p = make_policy(
+            r#"
+name: test
+description: exact
+rules:
+  - event_type: exec
+    action: allow
+    path: "/usr/bin/git"
+  - event_type: exec
+    action: block
+"#,
+        );
+        let compiled = p.compile();
+        let exec = EventType::Exec as u8;
+
+        let result = compiled.match_event(exec, "/usr/bin/git", "");
+        assert!(matches!(result, Some(PolicyActionType::Allow)));
+
+        let result = compiled.match_event(exec, "/usr/bin/curl", "");
+        assert!(matches!(result, Some(PolicyActionType::Block)));
+    }
+
+    #[test]
+    fn compiled_policy_glob_wildcard() {
+        let p = make_policy(
+            r#"
+name: test
+description: glob
+rules:
+  - event_type: exec
+    action: allow
+    path: "/usr/bin/python*"
+  - event_type: exec
+    action: block
+"#,
+        );
+        let compiled = p.compile();
+        let exec = EventType::Exec as u8;
+
+        assert!(matches!(
+            compiled.match_event(exec, "/usr/bin/python3", ""),
+            Some(PolicyActionType::Allow)
+        ));
+        assert!(matches!(
+            compiled.match_event(exec, "/usr/bin/python3.11", ""),
+            Some(PolicyActionType::Allow)
+        ));
+        assert!(matches!(
+            compiled.match_event(exec, "/usr/bin/node", ""),
+            Some(PolicyActionType::Block)
+        ));
+    }
+
+    #[test]
+    fn compiled_policy_glob_double_star() {
+        let p = make_policy(
+            r#"
+name: test
+description: recursive glob
+rules:
+  - event_type: unlink
+    action: block
+    path: "/etc/**"
+  - event_type: unlink
+    action: audit
+"#,
+        );
+        let compiled = p.compile();
+        let unlink = EventType::Unlink as u8;
+
+        assert!(matches!(
+            compiled.match_event(unlink, "/etc/shadow", ""),
+            Some(PolicyActionType::Block)
+        ));
+        assert!(matches!(
+            compiled.match_event(unlink, "/etc/nginx/nginx.conf", ""),
+            Some(PolicyActionType::Block)
+        ));
+        assert!(matches!(
+            compiled.match_event(unlink, "/tmp/foo.txt", ""),
+            Some(PolicyActionType::Audit)
+        ));
+    }
+
+    #[test]
+    fn compiled_policy_no_matching_event_type_returns_none() {
+        let p = make_policy(
+            r#"
+name: test
+description: exec only
+rules:
+  - event_type: exec
+    action: block
+"#,
+        );
+        let compiled = p.compile();
+        let connect = EventType::Connect as u8;
+
+        assert!(compiled.match_event(connect, "", "").is_none());
+    }
+
+    #[test]
+    fn compiled_policy_argv_matching() {
+        let p = make_policy(
+            r#"
+name: test
+description: argv
+rules:
+  - event_type: exec
+    action: block
+    argv: "*--dangerous*"
+  - event_type: exec
+    action: allow
+"#,
+        );
+        let compiled = p.compile();
+        let exec = EventType::Exec as u8;
+
+        assert!(matches!(
+            compiled.match_event(exec, "/usr/bin/tool", "tool --dangerous-flag"),
+            Some(PolicyActionType::Block)
+        ));
+        assert!(matches!(
+            compiled.match_event(exec, "/usr/bin/tool", "tool --safe"),
+            Some(PolicyActionType::Allow)
+        ));
+    }
+
+    #[test]
+    fn compiled_policy_path_and_argv_both_must_match() {
+        let p = make_policy(
+            r#"
+name: test
+description: both
+rules:
+  - event_type: exec
+    action: allow
+    path: "/usr/bin/git"
+    argv: "git push*"
+  - event_type: exec
+    action: block
+"#,
+        );
+        let compiled = p.compile();
+        let exec = EventType::Exec as u8;
+
+        assert!(matches!(
+            compiled.match_event(exec, "/usr/bin/git", "git push origin main"),
+            Some(PolicyActionType::Allow)
+        ));
+        // path matches but argv doesn't
+        assert!(matches!(
+            compiled.match_event(exec, "/usr/bin/git", "git status"),
+            Some(PolicyActionType::Block)
+        ));
+        // argv matches but path doesn't
+        assert!(matches!(
+            compiled.match_event(exec, "/usr/bin/curl", "git push origin main"),
+            Some(PolicyActionType::Block)
+        ));
+    }
+
+    #[test]
+    fn policy_action_type_to_u8_roundtrip() {
+        assert_eq!(PolicyActionType::Allow.to_u8(), PolicyAction::Allow as u8);
+        assert_eq!(PolicyActionType::Block.to_u8(), PolicyAction::Block as u8);
+        assert_eq!(PolicyActionType::Kill.to_u8(), PolicyAction::Kill as u8);
+        assert_eq!(PolicyActionType::Audit.to_u8(), PolicyAction::Audit as u8);
+    }
+}
