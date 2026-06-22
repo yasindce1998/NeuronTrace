@@ -51,7 +51,8 @@ impl BpfEngine {
     pub fn load_and_attach(&mut self) -> Result<()> {
         let btf = Btf::from_sys_fs()?;
 
-        std::fs::create_dir_all(PIN_PROGS).context("failed to create BPF pin directory for programs")?;
+        std::fs::create_dir_all(PIN_PROGS)
+            .context("failed to create BPF pin directory for programs")?;
         std::fs::create_dir_all(PIN_MAPS).context("failed to create BPF pin directory for maps")?;
 
         for (prog_name, hook_name) in LSM_HOOKS {
@@ -65,7 +66,8 @@ impl BpfEngine {
             program.attach()?;
 
             let pin_path = format!("{PIN_PROGS}/{prog_name}");
-            program.pin(&pin_path)
+            program
+                .pin(&pin_path)
                 .with_context(|| format!("failed to pin program '{prog_name}' to {pin_path}"))?;
             info!(program = prog_name, hook = hook_name, pin = %pin_path, "attached and pinned LSM hook");
         }
@@ -92,7 +94,10 @@ impl BpfEngine {
                 .context("failed to remove pinned BPF programs/maps")?;
             info!(path = PIN_BASE, "removed all pinned BPF programs and maps");
         } else {
-            info!(path = PIN_BASE, "no pinned programs found — nothing to unload");
+            info!(
+                path = PIN_BASE,
+                "no pinned programs found — nothing to unload"
+            );
         }
         Ok(())
     }

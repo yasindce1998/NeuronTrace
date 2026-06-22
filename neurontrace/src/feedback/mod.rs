@@ -76,7 +76,9 @@ impl FeedbackSender {
         let line = format!("{}\n", json);
         let write_result = match &mut self.output {
             FeedbackOutput::Socket(stream) => stream.write_all(line.as_bytes()),
-            FeedbackOutput::File(writer) => writer.write_all(line.as_bytes()).and_then(|_| writer.flush()),
+            FeedbackOutput::File(writer) => writer
+                .write_all(line.as_bytes())
+                .and_then(|_| writer.flush()),
         };
 
         if let Err(e) = write_result {
@@ -92,12 +94,8 @@ fn extract_target(event: &NtEvent, event_type: EventType) -> String {
     match event_type {
         EventType::Connect => format_sockaddr(&event.path[..path_len]),
         EventType::TaskKill if event.argv_len >= 4 => {
-            let target_pid = u32::from_ne_bytes([
-                event.argv[0],
-                event.argv[1],
-                event.argv[2],
-                event.argv[3],
-            ]);
+            let target_pid =
+                u32::from_ne_bytes([event.argv[0], event.argv[1], event.argv[2], event.argv[3]]);
             format!("pid:{}", target_pid)
         }
         _ => {
