@@ -91,11 +91,9 @@ impl FeedbackSender {
             FeedbackOutput::File(writer) => writer
                 .write_all(line.as_bytes())
                 .and_then(|_| writer.flush()),
-            FeedbackOutput::Stdout => {
-                std::io::stdout()
-                    .write_all(line.as_bytes())
-                    .and_then(|_| std::io::stdout().flush())
-            }
+            FeedbackOutput::Stdout => std::io::stdout()
+                .write_all(line.as_bytes())
+                .and_then(|_| std::io::stdout().flush()),
         };
 
         if let Err(e) = write_result {
