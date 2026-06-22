@@ -37,6 +37,7 @@ pub fn handle_exec(ctx: &LsmContext) -> Result<i32, i64> {
     }
 }
 
+#[inline(always)]
 fn emit_exec_event(ctx: &LsmContext, pid: u32, tgid: u32, action: PolicyAction) {
     if let Some(mut buf) = EVENTS.reserve::<NtEvent>(0) {
         let event = unsafe { &mut *buf.as_mut_ptr() };

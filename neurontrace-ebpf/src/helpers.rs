@@ -1,6 +1,7 @@
 use aya_ebpf::helpers::bpf_probe_read_kernel_str_bytes;
 use neurontrace_common::MAX_PATH_LEN;
 
+#[inline(always)]
 pub fn read_kernel_str(src: *const u8, dst: &mut [u8; MAX_PATH_LEN]) -> u16 {
     if src.is_null() {
         return 0;

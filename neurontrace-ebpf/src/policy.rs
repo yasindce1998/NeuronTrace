@@ -3,6 +3,7 @@ use neurontrace_common::{EventType, PolicyAction, PolicyKey};
 
 use crate::maps::{GENERATION, LABEL_MAP, PID_ALLOWLIST, POLICY_MAP};
 
+#[inline(always)]
 pub fn check_policy(pid: u32, event_type: EventType) -> PolicyAction {
     // Skip if PID is in the allowlist (controller process)
     if unsafe { PID_ALLOWLIST.get(&pid).is_some() } {
@@ -29,6 +30,7 @@ pub fn check_policy(pid: u32, event_type: EventType) -> PolicyAction {
     }
 }
 
+#[inline(always)]
 pub fn check_generation(pid: u32) -> bool {
     let current_gen = match GENERATION.get(0) {
         Some(g) => g.current,

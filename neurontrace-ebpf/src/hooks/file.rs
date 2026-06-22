@@ -161,6 +161,7 @@ enum PathSource {
     DentryArg(usize),
 }
 
+#[inline(always)]
 fn emit_file_event(
     ctx: &LsmContext,
     pid: u32,
@@ -213,6 +214,7 @@ fn emit_file_event(
     }
 }
 
+#[inline(always)]
 fn read_file_dentry_ptr(ctx: &LsmContext) -> *const u8 {
     let file_ptr: *const u8 = unsafe { ctx.arg(0) };
     if file_ptr.is_null() {

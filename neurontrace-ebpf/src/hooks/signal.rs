@@ -58,6 +58,7 @@ pub fn handle_task_kill(ctx: &LsmContext) -> Result<i32, i64> {
     }
 }
 
+#[inline(always)]
 fn emit_event(pid: u32, tgid: u32, action: PolicyAction, target_pid: u32) {
     if let Some(mut buf) = EVENTS.reserve::<NtEvent>(0) {
         let event = unsafe { &mut *buf.as_mut_ptr() };
