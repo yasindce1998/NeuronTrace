@@ -74,6 +74,49 @@ That's it. The script:
 ══════════════════════════════════════════════
 ```
 
+## Audit-only onboarding (recommended first step)
+
+Before enforcing, observe what your agent actually does:
+
+```bash
+sudo neurontrace run \
+  --policy policies/claude-code.yaml \
+  --cgroup /sys/fs/cgroup/my-agent \
+  --audit-only
+```
+
+With `--audit-only`, every action is **logged but never blocked**. This lets you:
+1. See what syscalls your agent makes in normal operation
+2. Identify which policy rules would fire
+3. Tune your policy before switching to enforcement mode
+
+Once satisfied, drop the `--audit-only` flag to enforce for real.
+
+## Check enforcement status
+
+```bash
+sudo neurontrace status
+```
+
+Shows whether NeuronTrace is active and lists pinned BPF programs/maps:
+
+```
+NeuronTrace: ACTIVE
+  Programs (6):
+    - nt_file_open
+    - nt_exec
+    - nt_connect
+    - nt_unlink
+    - nt_rename
+    - nt_task_kill
+  Maps (5):
+    - POLICY_MAP
+    - LABEL_MAP
+    - GENERATION
+    - EVENTS
+    - PID_ALLOWLIST
+```
+
 ## Try different policies
 
 ```bash

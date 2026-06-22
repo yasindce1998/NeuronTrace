@@ -33,7 +33,39 @@ rules:
 | `event_type` | Yes | — | Which syscall class this rule covers |
 | `action` | Yes | — | What to do when this event fires |
 | `cgroup_id` | No | `0` | Scope to a specific cgroup (0 = all cgroups) |
+| `path` | No | — | Glob pattern to match against the event's file path or target |
+| `argv` | No | — | Glob pattern to match against exec arguments |
 | `description` | No | `""` | Human-readable note about this rule |
+
+### Path and Argv Filtering
+
+Rules can include `path` and/or `argv` glob patterns for fine-grained userspace filtering:
+
+```yaml
+rules:
+  - event_type: exec
+    action: allow
+    path: "/usr/bin/git"
+    description: Allow git
+
+  - event_type: exec
+    action: allow
+    path: "/usr/bin/python*"
+    description: Allow Python interpreters (wildcard)
+
+  - event_type: connect
+    action: allow
+    path: "127.0.0.1:*"
+    description: Allow localhost connections on any port
+
+  - event_type: exec
+    action: block
+    description: Block all other exec (catch-all)
+```
+
+**Evaluation order**: Rules are checked top-to-bottom. The first rule matching both event type and path/argv wins. Rules without `path`/`argv` act as catch-all defaults for that event type.
+
+**Architecture**: BPF enforces at the event-type level (coarse), while userspace performs the glob matching (fine-grained). This keeps BPF programs simple and within the 512-byte stack limit while supporting arbitrarily complex path patterns.
 
 ## Event Types
 
@@ -47,6 +79,7 @@ Each event type maps to one or more Linux syscalls intercepted via BPF-LSM hooks
 | `rename` | `inode_rename` | `rename`, `renameat`, `renameat2` |
 | `connect` | `socket_connect` | `connect` |
 | `ptrace` | `ptrace_access_check` | `ptrace` |
+| `task_kill` | `task_kill` | `kill`, `tkill`, `tgkill` |
 
 ## Actions
 
