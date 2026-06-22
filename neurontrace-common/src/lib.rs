@@ -102,7 +102,10 @@ pub mod user {
 
     #[derive(Debug, Clone, serde::Serialize)]
     pub struct ViolationFeedback {
+        pub version: u8,
         pub kind: &'static str,
+        pub timestamp_ns: u64,
+        pub pid: u32,
         pub hook: String,
         pub target: String,
         pub effect: String,

@@ -32,6 +32,7 @@ async fn main() -> Result<()> {
             policy,
             cgroup,
             feedback: feedback_path,
+            feedback_stdout,
             audit_only,
             dry_run,
         } => {
@@ -71,7 +72,11 @@ async fn main() -> Result<()> {
                     policy_set.rules.len()
                 );
                 println!("  Cgroup: {}", cgroup.display());
-                println!("  Feedback: {}", feedback_path.display());
+                if feedback_stdout {
+                    println!("  Feedback: stdout");
+                } else {
+                    println!("  Feedback: {}", feedback_path.display());
+                }
                 println!("  Audit-only: {}", audit_only);
                 return Ok(());
             }
@@ -84,7 +89,11 @@ async fn main() -> Result<()> {
             let cgroup_id = cgroup::setup_cgroup(&cgroup)?;
             info!(cgroup_id, "cgroup configured");
 
-            let mut feedback_sender = feedback::FeedbackSender::new(&feedback_path);
+            let mut feedback_sender = if feedback_stdout {
+                feedback::FeedbackSender::new_stdout()
+            } else {
+                feedback::FeedbackSender::new(&feedback_path)
+            };
 
             info!("neurontrace enforcement active — default-deny enabled");
 

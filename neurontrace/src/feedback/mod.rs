@@ -10,6 +10,7 @@ use tracing::{info, warn};
 enum FeedbackOutput {
     Socket(UnixStream),
     File(BufWriter<File>),
+    Stdout,
 }
 
 pub struct FeedbackSender {
@@ -50,12 +51,23 @@ impl FeedbackSender {
         }
     }
 
+    pub fn new_stdout() -> Self {
+        info!("feedback writing to stdout (JSONL)");
+        Self {
+            output: FeedbackOutput::Stdout,
+            path: PathBuf::from("-"),
+        }
+    }
+
     pub fn report_violation(&mut self, event: &NtEvent) {
         let event_type = EventType::from(event.event_type);
         let action = PolicyAction::from(event.action_taken);
 
         let feedback = ViolationFeedback {
+            version: 1,
             kind: "violation",
+            timestamp_ns: event.timestamp_ns,
+            pid: event.pid,
             hook: event_type.to_string(),
             target: extract_target(event, event_type),
             effect: format_effect(action),
@@ -79,6 +91,11 @@ impl FeedbackSender {
             FeedbackOutput::File(writer) => writer
                 .write_all(line.as_bytes())
                 .and_then(|_| writer.flush()),
+            FeedbackOutput::Stdout => {
+                std::io::stdout()
+                    .write_all(line.as_bytes())
+                    .and_then(|_| std::io::stdout().flush())
+            }
         };
 
         if let Err(e) = write_result {

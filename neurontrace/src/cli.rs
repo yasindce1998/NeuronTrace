@@ -28,6 +28,10 @@ pub enum Command {
         #[arg(long)]
         feedback: Option<PathBuf>,
 
+        /// Emit violation feedback as JSONL on stdout (for piped agent consumption)
+        #[arg(long)]
+        feedback_stdout: bool,
+
         /// Audit-only mode: observe without enforcing (all actions become audit)
         #[arg(long)]
         audit_only: bool,

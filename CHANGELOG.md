@@ -21,7 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Self-protection: BPF pinning to `/sys/fs/bpf/neurontrace/` — enforcement persists if userspace process dies
 - Self-protection: `task_kill` LSM hook — blocks signals from inside cgroup targeting external PIDs
 - Path/argv extraction from LSM context into events
-- Structured JSON feedback delivery via Unix socket or JSONL file
+- Structured JSON feedback delivery via Unix socket, JSONL file, or stdout (`--feedback-stdout`)
+- Feedback protocol v1 with `version`, `timestamp_ns`, and `pid` fields for agent-agnostic consumption
+- Feedback protocol specification (`docs/feedback-protocol.md`)
 - `--audit-only` mode for observing agent behavior without blocking
 - CLI with `run`, `validate`, `bump`, `unload`, and `status` commands
 - `--dry-run` flag for `run` command — validates config and policy without root or BPF loading
