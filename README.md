@@ -1,6 +1,19 @@
-# NeuronTrace
+<p align="center">
+  <img src="assets/logo.svg" alt="NeuronTrace" width="280"/>
+</p>
 
-Kernel-level behavioral containment for AI agents using eBPF/LSM.
+<p align="center">
+  <strong>Kernel-level behavioral containment for AI agents using eBPF/LSM.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/yasindce1998/NeuronTrace/actions"><img src="https://github.com/yasindce1998/NeuronTrace/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
+  <img src="https://img.shields.io/badge/kernel-5.15%2B-orange.svg" alt="Kernel 5.15+">
+  <img src="https://img.shields.io/badge/rust-nightly-purple.svg" alt="Rust Nightly">
+</p>
+
+---
 
 NeuronTrace enforces **default-deny** policies on AI agent processes at the kernel level. Unlike application-layer sandboxes, agents cannot bypass enforcement — the kernel blocks syscalls before they execute.
 
