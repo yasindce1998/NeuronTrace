@@ -31,7 +31,8 @@
 8. [Feedback Loop](#8-feedback-loop)
 9. [Performance and Stability](#9-performance-and-stability)
 10. [Success Criteria](#10-success-criteria)
-11. [Future Work (Post-v0.1)](#11-future-work-post-v01)
+11. [v0.2 Roadmap — Graph Mode & Defer](#11-v02-roadmap--graph-mode--defer)
+12. [v0.3 Roadmap — Platform Expansion & Ecosystem](#12-v03-roadmap--platform-expansion--ecosystem)
 
 ---
 
@@ -96,6 +97,10 @@ Three things ship together. All three are required — shipping any subset makes
 
 ## 5. Kernel Mode
 
+*As a security engineer, I can enforce syscall-level restrictions on AI agents so that no prompt injection or jailbreak can bypass my containment — because the kernel denies the action before it executes.*
+
+*As a developer running Claude Code, I can restrict which binaries it spawns, which files it reads, and which hosts it contacts — without modifying the agent itself or trusting its cooperation.*
+
 ### 5.1 Hooks
 
 | Hook | What it catches |
@@ -142,6 +147,10 @@ Hooks attach at cgroup scope, not system-wide. Non-agent processes never enter t
 
 ## 6. Generation-Tagged Mode
 
+*As a user running multi-task agent sessions, I can ensure that data accessed in Task A cannot leak into Task B — even if the agent's context window carries forward — because NeuronTrace detects and blocks stale-generation access at the kernel level.*
+
+*As a compliance officer, I can prove that cross-task data isolation is enforced by hardware-speed kernel checks, not by trusting the AI model to respect boundaries.*
+
 Enabled via `--task-scoping=on`. No separate binary, no userspace component.
 
 ### 6.1 Mechanism
@@ -179,6 +188,10 @@ For Claude Code: a PostToolUse hook writes to this socket when the session switc
 ---
 
 ## 7. Starter Policy Packs
+
+*As a developer who has never written eBPF or security policies, I can protect my agent in under 2 minutes by selecting a starter pack that matches my harness — no rule-writing, no kernel knowledge required.*
+
+*As a team lead, I can roll out consistent containment across all developers using the same starter policy, then customize as we learn what our agents actually need.*
 
 Shipped in-binary. Zero configuration required for supported harnesses.
 
@@ -246,6 +259,10 @@ $ neurontrace enforce enable   # switch to blocking mode
 ---
 
 ## 8. Feedback Loop
+
+*As an AI agent, when my action is blocked I receive structured context explaining what was denied and why — so I can self-correct (try a different approach) instead of retrying the same blocked action in a loop.*
+
+*As a developer debugging a stuck agent, I can see exactly which syscalls were blocked and what policy rule triggered — without digging through kernel logs.*
 
 When a violation occurs (in enforce mode), NeuronTrace delivers a structured JSON payload to the agent's hook system:
 
@@ -323,26 +340,89 @@ Published overhead numbers: per-syscall latency (allow path), exec-heavy workloa
 
 ---
 
-## 11. Future Work (Post-v0.1)
+## 11. v0.2 Roadmap — Graph Mode & Defer
 
-These are explicitly not in scope for v0.1. They exist here to document architectural intent, not as commitments:
+*Target: 4-6 weeks after v0.1 ships. Only build if v0.1 usage data confirms generation-tagging is insufficient for real-world multi-hop violations.*
 
-### Graph Mode
+### 11.1 Graph Mode
 
-A userspace graph engine for multi-hop data-flow path queries (did data from A reach C through intermediate nodes?). Uses a split-decision architecture: BPF consults a verdict cache populated asynchronously by userspace. Never holds syscalls in-kernel. Only build this if real v0.1 usage data shows generation-tagging is insufficient for common violations.
+*As a security researcher, I can query whether data from source A reached sink C through any intermediate path — even if no single hop violated policy — so I can detect complex exfiltration chains.*
 
-### `defer` Effect
+- **Userspace graph engine** for multi-hop data-flow path queries
+- **Split-decision architecture**: BPF hooks consult a verdict cache populated asynchronously by a userspace graph walker
+- **Never holds syscalls in-kernel** — the BPF hook either finds a cached verdict (hit → allow/block immediately) or returns allow-with-audit (miss → log event, userspace evaluates async, updates cache for next time)
+- **Graph storage**: in-memory adjacency list with bounded depth (configurable, default 4 hops)
+- **Query API**: `neurontrace query --from <label> --to <label>` returns all paths
 
-Human-in-the-loop approval for ambiguous actions. Uses SIGSTOP/SIGCONT (not syscall holding). Requires graph mode's verdict cache infrastructure.
+### 11.2 Defer Effect
 
-### seccomp-notify Integration
+*As a user, I can configure "ask me first" rules for ambiguous actions — the agent pauses, I approve or deny, and it resumes — so I retain human oversight without pre-deciding every edge case.*
 
-Alternative enforcement path using seccomp's supervisor notification mechanism. Enables response injection (returning fake file descriptors with sanitized content) instead of binary allow/deny. Research-stage.
+- Uses `SIGSTOP` / `SIGCONT` on the process (not syscall holding — BPF cannot pause mid-syscall)
+- Requires graph mode's verdict cache infrastructure (the deferred verdict is written to cache on user response)
+- Timeout: configurable (default 30s), falls back to block on timeout
+- Delivery: terminal prompt, Unix socket notification, or webhook
 
-### Cross-Platform
+### 11.3 seccomp-notify Integration
 
-macOS (via Endpoint Security Framework) and Windows (via ETW) — if demand justifies the investment. Not architecturally planned for v0.1.
+*As an advanced user, I can intercept and rewrite syscall arguments (e.g., redirect file opens to sanitized copies) instead of binary allow/deny.*
 
-### Warmor Integration
+- Alternative enforcement path using seccomp's supervisor notification mechanism
+- Enables response injection: return fake file descriptors with sanitized content
+- Research-stage in v0.2 — API design only, implementation in v0.3 if viable
 
-Potential future path: NeuronTrace as an "agent mode" policy profile within Warmor's cross-platform framework. Both projects must mature independently first.
+### 11.4 Enhanced Policy Language
+
+- Glob patterns for paths (`/home/*/project/**`)
+- Time-based rules (block network after 5 minutes)
+- Rate limiting (allow max 10 exec per minute)
+- Policy composition: import and override rules from base policies
+
+---
+
+## 12. v0.3 Roadmap — Platform Expansion & Ecosystem
+
+*Target: 8-12 weeks after v0.2. Contingent on community adoption and demand signals.*
+
+### 12.1 Cross-Platform Research
+
+*As a macOS or Windows user, I want equivalent kernel-level containment for AI agents running on my platform.*
+
+- **macOS**: Endpoint Security Framework (ESF) — user-space daemon receiving authorization events from the kernel
+- **Windows**: ETW (Event Tracing for Windows) + minifilter drivers — significantly different architecture
+- Outcome: architecture assessment document, not necessarily a shipped product. Ship only if demand justifies investment.
+
+### 12.2 Warmor Integration
+
+*As a Warmor user, I can activate NeuronTrace as an "agent containment" policy profile within Warmor's cross-platform framework — one tool for both system-wide and agent-specific enforcement.*
+
+- NeuronTrace policies expressed as Warmor policy modules
+- Shared event pipeline: NeuronTrace violations appear in Warmor's audit stream
+- Prerequisite: both projects must have stable v1.0 APIs independently
+
+### 12.3 Container & Orchestrator Support
+
+*As a platform engineer, I can deploy NeuronTrace enforcement across a fleet of agent containers using standard orchestrator primitives (DaemonSet, sidecar).*
+
+- Kubernetes DaemonSet deployment with auto-discovery of agent pods
+- Container runtime integration (containerd, CRI-O) for automatic cgroup attachment
+- Helm chart with per-namespace policy configuration
+- Multi-tenant: different policies per namespace/pod label
+
+### 12.4 Observability & Audit Trail
+
+*As a compliance auditor, I can retrieve a complete, tamper-evident log of every enforcement decision made by NeuronTrace across all agents in my fleet.*
+
+- Structured event export to OpenTelemetry / OTLP
+- Append-only audit log with cryptographic chaining (hash chain)
+- Grafana dashboard templates for violation rates, latency, generation drift
+- Alert rules: generation stuck (agent not signaling boundaries), ring buffer drops, policy load failures
+
+### 12.5 Agent SDK Integration
+
+*As an agent framework developer, I can integrate NeuronTrace awareness directly into my SDK — so agents receive violation context natively without custom hook wiring.*
+
+- Python SDK: `neurontrace-py` package for harness integration
+- TypeScript SDK: `@neurontrace/sdk` for Node.js-based agents
+- Protocol: lightweight gRPC or Unix socket with protobuf messages
+- Auto-discovery: SDK finds the NeuronTrace socket via well-known path or env var

@@ -1,0 +1,19 @@
+[workspace]
+resolver = "2"
+members = [
+    "neurontrace",
+    "neurontrace-common",
+    "neurontrace-ebpf",
+    "xtask",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/yasindce1998/NeuronTrace"
+authors = ["Mohammed Yasin <yasindce1998@gmail.com>"]
+
+[workspace.dependencies]
+neurontrace-common = { path = "neurontrace-common" }
+thiserror = "2"

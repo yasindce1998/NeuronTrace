@@ -1,0 +1,15 @@
+[package]
+name = "neurontrace-common"
+description = "Shared types between NeuronTrace BPF programs and userspace"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = []
+user = ["thiserror"]
+
+[dependencies]
+thiserror = { workspace = true, optional = true }

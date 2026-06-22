@@ -1,0 +1,27 @@
+[package]
+name = "neurontrace-ebpf"
+description = "NeuronTrace BPF programs for kernel-level enforcement"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+neurontrace-common = { workspace = true }
+aya-ebpf = "0.1"
+aya-log-ebpf = "0.1"
+
+[[bin]]
+name = "neurontrace-ebpf"
+path = "src/main.rs"
+
+[profile.dev]
+opt-level = 2
+overflow-checks = false
+debug-assertions = false
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+lto = true

@@ -1,0 +1,29 @@
+name: claude-code
+description: >
+  Starter policy for Claude Code (Anthropic). Allows file operations within
+  workspace, blocks network and exec by default. Audit ptrace.
+
+rules:
+  - event_type: exec
+    action: block
+    description: Block subprocess spawning unless explicitly allowed
+
+  - event_type: open
+    action: allow
+    description: Allow file reads/writes within cgroup scope
+
+  - event_type: unlink
+    action: audit
+    description: Audit file deletions for review
+
+  - event_type: rename
+    action: allow
+    description: Allow file renames within workspace
+
+  - event_type: connect
+    action: block
+    description: Block outbound network connections
+
+  - event_type: ptrace
+    action: block
+    description: Block ptrace — no debugging other processes

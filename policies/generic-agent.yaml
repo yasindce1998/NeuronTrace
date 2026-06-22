@@ -1,0 +1,29 @@
+name: generic-agent
+description: >
+  Maximum-restriction policy for untrusted AI agents. Default-deny everything
+  except audited file reads. Use as a starting point and relax as needed.
+
+rules:
+  - event_type: exec
+    action: block
+    description: No subprocess spawning
+
+  - event_type: open
+    action: audit
+    description: Audit all file access
+
+  - event_type: unlink
+    action: block
+    description: No file deletion
+
+  - event_type: rename
+    action: block
+    description: No file renames
+
+  - event_type: connect
+    action: block
+    description: No network access
+
+  - event_type: ptrace
+    action: block
+    description: No ptrace

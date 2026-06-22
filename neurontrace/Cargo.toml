@@ -1,0 +1,27 @@
+[package]
+name = "neurontrace"
+description = "Kernel-level behavioral containment for AI agents"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "neurontrace"
+path = "src/main.rs"
+
+[dependencies]
+neurontrace-common = { workspace = true, features = ["user"] }
+thiserror = { workspace = true }
+aya = "0.13"
+aya-log = "0.2"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+serde_json = "1"
+nix = { version = "0.29", features = ["signal", "process"] }

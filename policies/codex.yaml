@@ -1,0 +1,29 @@
+name: codex
+description: >
+  Starter policy for OpenAI Codex CLI. Codex operates in a sandboxed
+  environment — this policy enforces network isolation and exec restrictions.
+
+rules:
+  - event_type: exec
+    action: audit
+    description: Audit exec calls — Codex spawns subprocesses for tool use
+
+  - event_type: open
+    action: allow
+    description: Allow file operations within cgroup
+
+  - event_type: unlink
+    action: allow
+    description: Allow file deletions within workspace
+
+  - event_type: rename
+    action: allow
+    description: Allow file renames
+
+  - event_type: connect
+    action: block
+    description: Block all outbound network — Codex should be air-gapped
+
+  - event_type: ptrace
+    action: block
+    description: Block ptrace — no process inspection
