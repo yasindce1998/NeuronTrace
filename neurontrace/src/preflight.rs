@@ -27,8 +27,8 @@ fn check_bpf_lsm() -> Result<()> {
         );
     }
 
-    let lsm_list = std::fs::read_to_string(lsm_path)
-        .context("failed to read /sys/kernel/security/lsm")?;
+    let lsm_list =
+        std::fs::read_to_string(lsm_path).context("failed to read /sys/kernel/security/lsm")?;
 
     if !lsm_list.contains("bpf") {
         bail!(
