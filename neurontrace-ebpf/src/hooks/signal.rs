@@ -1,6 +1,7 @@
-use aya_ebpf::helpers::{bpf_get_current_pid_tgid, bpf_probe_read_kernel};
+use aya_ebpf::helpers::bpf_get_current_pid_tgid;
 use aya_ebpf::programs::LsmContext;
 
+use crate::helpers::read_kernel_u32;
 use crate::maps::{EVENTS, PID_ALLOWLIST};
 use crate::policy::check_policy;
 use neurontrace_common::{EventType, NtEvent, PolicyAction, MAX_ARGV_LEN, MAX_PATH_LEN};
@@ -25,11 +26,9 @@ pub fn handle_task_kill(ctx: &LsmContext) -> Result<i32, i64> {
     }
 
     // Read target PID (tgid) from task_struct
-    let target_pid: u32 = unsafe {
-        match bpf_probe_read_kernel(target_task.add(TASK_STRUCT_TGID_OFFSET) as *const u32) {
-            Ok(pid) => pid,
-            Err(_) => return Ok(0), // fail-open if we can't read
-        }
+    let target_pid = match read_kernel_u32(target_task.wrapping_add(TASK_STRUCT_TGID_OFFSET)) {
+        Some(pid) => pid,
+        None => return Ok(0), // fail-open if we can't read
     };
 
     // If target is in the allowlist (controller), block the signal

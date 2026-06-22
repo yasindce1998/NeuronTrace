@@ -1,7 +1,7 @@
-use aya_ebpf::helpers::{bpf_get_current_pid_tgid, bpf_probe_read_kernel};
+use aya_ebpf::helpers::bpf_get_current_pid_tgid;
 use aya_ebpf::programs::LsmContext;
 
-use crate::helpers::read_kernel_str;
+use crate::helpers::{read_kernel_ptr, read_kernel_str};
 use crate::maps::EVENTS;
 use crate::policy::{check_generation, check_policy};
 use neurontrace_common::{EventType, NtEvent, PolicyAction, MAX_ARGV_LEN, MAX_PATH_LEN};
@@ -199,12 +199,7 @@ fn emit_file_event(
         };
 
         if !dentry_ptr.is_null() {
-            let name_ptr: *const u8 = match unsafe {
-                bpf_probe_read_kernel(dentry_ptr.add(DENTRY_NAME_OFFSET) as *const *const u8)
-            } {
-                Ok(ptr) => ptr,
-                Err(_) => core::ptr::null(),
-            };
+            let name_ptr = read_kernel_ptr(dentry_ptr.wrapping_add(DENTRY_NAME_OFFSET));
             if !name_ptr.is_null() {
                 event.path_len = read_kernel_str(name_ptr, &mut event.path);
             }
@@ -220,8 +215,5 @@ fn read_file_dentry_ptr(ctx: &LsmContext) -> *const u8 {
     if file_ptr.is_null() {
         return core::ptr::null();
     }
-    match unsafe { bpf_probe_read_kernel(file_ptr.add(FILE_DENTRY_OFFSET) as *const *const u8) } {
-        Ok(ptr) => ptr,
-        Err(_) => core::ptr::null(),
-    }
+    read_kernel_ptr(file_ptr.wrapping_add(FILE_DENTRY_OFFSET))
 }

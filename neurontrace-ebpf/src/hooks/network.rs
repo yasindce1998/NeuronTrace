@@ -1,6 +1,7 @@
-use aya_ebpf::helpers::{bpf_get_current_pid_tgid, bpf_probe_read_kernel};
+use aya_ebpf::helpers::bpf_get_current_pid_tgid;
 use aya_ebpf::programs::LsmContext;
 
+use crate::helpers::read_kernel_bytes;
 use crate::maps::EVENTS;
 use crate::policy::{check_generation, check_policy};
 use neurontrace_common::{EventType, NtEvent, PolicyAction, MAX_ARGV_LEN, MAX_PATH_LEN};
@@ -65,17 +66,9 @@ fn emit_connect_event(ctx: &LsmContext, pid: u32, tgid: u32, action: PolicyActio
                 addrlen as usize
             };
 
-            if read_len > 0 {
-                if let Ok(tmp) =
-                    unsafe { bpf_probe_read_kernel(addr_ptr as *const [u8; MAX_SOCKADDR_LEN]) }
-                {
-                    let mut i = 0;
-                    while i < read_len && i < MAX_PATH_LEN {
-                        event.path[i] = tmp[i];
-                        i += 1;
-                    }
-                    event.path_len = read_len as u16;
-                }
+            if read_len > 0 && read_len <= MAX_PATH_LEN {
+                read_kernel_bytes(addr_ptr, &mut event.path, read_len);
+                event.path_len = read_len as u16;
             }
         }
 

@@ -1,7 +1,7 @@
-use aya_ebpf::helpers::{bpf_get_current_pid_tgid, bpf_probe_read_kernel};
+use aya_ebpf::helpers::bpf_get_current_pid_tgid;
 use aya_ebpf::programs::LsmContext;
 
-use crate::helpers::read_kernel_str;
+use crate::helpers::{read_kernel_ptr, read_kernel_str};
 use crate::maps::EVENTS;
 use crate::policy::{check_generation, check_policy};
 use neurontrace_common::{EventType, NtEvent, PolicyAction, MAX_ARGV_LEN, MAX_PATH_LEN};
@@ -57,12 +57,9 @@ fn emit_exec_event(ctx: &LsmContext, pid: u32, tgid: u32, action: PolicyAction) 
 
         let bprm: *const u8 = unsafe { ctx.arg(0) };
         if !bprm.is_null() {
-            if let Ok(filename_ptr) = unsafe {
-                bpf_probe_read_kernel(bprm.add(BINPRM_FILENAME_OFFSET) as *const *const u8)
-            } {
-                if !filename_ptr.is_null() {
-                    event.path_len = read_kernel_str(filename_ptr, &mut event.path);
-                }
+            let filename_ptr = read_kernel_ptr(bprm.wrapping_add(BINPRM_FILENAME_OFFSET));
+            if !filename_ptr.is_null() {
+                event.path_len = read_kernel_str(filename_ptr, &mut event.path);
             }
         }
 
