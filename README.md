@@ -19,10 +19,13 @@ NeuronTrace enforces **default-deny** policies on AI agent processes at the kern
 
 ## Key Features
 
-- **BPF-LSM hooks**: Intercepts exec, file open, unlink, rename, connect, and ptrace at kernel level
+- **BPF-LSM hooks**: Intercepts exec, file open, unlink, rename, connect, ptrace, and task_kill at kernel level
 - **Default-deny**: No policy rule = blocked. Agents start with zero permissions
 - **Generation tagging**: Invalidate stale permissions when an agent starts a new task — no data leaks across generations
 - **Cgroup scoping**: Enforcement targets only the agent process tree, not your entire system
+- **Path/glob filtering**: Fine-grained rules with glob patterns (e.g. allow `/usr/bin/git`, block everything else)
+- **Self-protection**: BPF programs pinned to survive userspace crash; `task_kill` hook prevents agents from killing the controller
+- **Audit-only mode**: Observe agent behavior without blocking — safe onboarding before enforcement
 - **Starter policies**: Pre-built YAML policies for Claude Code, Codex, and generic agents
 
 ## Requirements
@@ -54,11 +57,23 @@ sudo ./target/release/neurontrace run \
   --policy policies/claude-code.yaml \
   --cgroup /sys/fs/cgroup/neurontrace
 
+# Observe without blocking (audit-only mode)
+sudo ./target/release/neurontrace run \
+  --policy policies/claude-code.yaml \
+  --cgroup /sys/fs/cgroup/neurontrace \
+  --audit-only
+
+# Check enforcement status
+sudo ./target/release/neurontrace status
+
 # Validate a policy without loading BPF
 cargo run --package neurontrace -- validate --policy policies/generic-agent.yaml
 
 # Bump generation (invalidate stale labels)
 sudo ./target/release/neurontrace bump
+
+# Stop enforcement and unpin BPF programs
+sudo ./target/release/neurontrace unload
 ```
 
 ## Project Structure
@@ -77,16 +92,19 @@ policies/            Starter policy packs (YAML)
 2. **Attach**: LSM hooks fire on every relevant syscall within the target cgroup
 3. **Check**: Each hook looks up the policy map — no match means block
 4. **Report**: Violations emit events via ring buffer back to userspace
-5. **Feedback**: Userspace logs violations and (in future) feeds them back to the agent
+5. **Feedback**: Violations are serialized as JSON and delivered to a Unix socket (or JSONL file), so the agent can self-correct
 
 ## Writing Policies
 
-Policies are YAML files with a list of rules. Each rule maps an event type to an action:
+Policies are YAML files with a list of rules. Each rule maps an event type to an action, with optional path/argv glob filters:
 
 ```yaml
 name: my-policy
 description: Custom policy for my agent
 rules:
+  - event_type: exec
+    action: allow
+    path: "/usr/bin/git"
   - event_type: exec
     action: block
   - event_type: open
@@ -97,7 +115,9 @@ rules:
 
 Actions: `allow`, `block`, `kill`, `audit`
 
-Event types: `exec`, `open`, `unlink`, `rename`, `connect`, `ptrace`
+Event types: `exec`, `open`, `unlink`, `rename`, `connect`, `ptrace`, `task_kill`
+
+Rules support `path` and `argv` glob patterns for fine-grained filtering. See [Policy Reference](docs/policies.md).
 
 ## Documentation
 
