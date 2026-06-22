@@ -5,18 +5,45 @@ See NeuronTrace block syscalls in real time — two commands, one terminal.
 ## Prerequisites
 
 - Linux kernel 5.15+ with BPF-LSM enabled (`cat /sys/kernel/security/lsm` must include `bpf`)
-- Rust nightly (`rustc --version`)
 - Root access
 
 > **Don't have BPF-LSM?** Add `lsm=lockdown,capability,landlock,yama,bpf` to your kernel command line and reboot.
 
-## Run the demo
+## Install
+
+### Option A: Pre-built binary (fastest)
+
+```bash
+# x86_64
+curl -LO https://github.com/yasindce1998/NeuronTrace/releases/latest/download/neurontrace-x86_64-unknown-linux-gnu.tar.gz
+tar xzf neurontrace-x86_64-unknown-linux-gnu.tar.gz
+sudo mv neurontrace /usr/local/bin/
+
+# aarch64
+curl -LO https://github.com/yasindce1998/NeuronTrace/releases/latest/download/neurontrace-aarch64-unknown-linux-gnu.tar.gz
+tar xzf neurontrace-aarch64-unknown-linux-gnu.tar.gz
+sudo mv neurontrace /usr/local/bin/
+```
+
+The tarball also includes starter policies in `policies/`.
+
+### Option B: Build from source
+
+Requires Rust nightly (`rustc --version`).
 
 ```bash
 git clone https://github.com/yasindce1998/NeuronTrace.git
 cd NeuronTrace
 cargo xtask build --release
+```
 
+## Run the demo
+
+```bash
+# If installed from binary:
+sudo neurontrace run --policy policies/generic-agent.yaml --cgroup /sys/fs/cgroup/neurontrace-demo
+
+# If built from source:
 sudo ./scripts/demo.sh
 ```
 

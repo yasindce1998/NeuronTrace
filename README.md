@@ -8,6 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/yasindce1998/NeuronTrace/actions"><img src="https://github.com/yasindce1998/NeuronTrace/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/yasindce1998/NeuronTrace/releases/latest"><img src="https://img.shields.io/github/v/release/yasindce1998/NeuronTrace?label=release" alt="Release"></a>
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/kernel-5.15%2B-orange.svg" alt="Kernel 5.15+">
   <img src="https://img.shields.io/badge/rust-nightly-purple.svg" alt="Rust Nightly">
@@ -28,17 +29,44 @@ NeuronTrace enforces **default-deny** policies on AI agent processes at the kern
 - **Audit-only mode**: Observe agent behavior without blocking — safe onboarding before enforcement
 - **Starter policies**: Pre-built YAML policies for Claude Code, Codex, and generic agents
 
+## Installation
+
+### Pre-built binaries (recommended)
+
+Download the latest release for your architecture:
+
+```bash
+# x86_64
+curl -LO https://github.com/yasindce1998/NeuronTrace/releases/latest/download/neurontrace-x86_64-unknown-linux-gnu.tar.gz
+tar xzf neurontrace-x86_64-unknown-linux-gnu.tar.gz
+sudo mv neurontrace /usr/local/bin/
+
+# aarch64
+curl -LO https://github.com/yasindce1998/NeuronTrace/releases/latest/download/neurontrace-aarch64-unknown-linux-gnu.tar.gz
+tar xzf neurontrace-aarch64-unknown-linux-gnu.tar.gz
+sudo mv neurontrace /usr/local/bin/
+```
+
+### Build from source
+
+```bash
+git clone https://github.com/yasindce1998/NeuronTrace.git
+cd NeuronTrace
+cargo xtask build --release
+```
+
+Requires Rust nightly and a working eBPF toolchain. See the [Development Guide](docs/development.md) for full setup.
+
 ## Requirements
 
 - Linux kernel 5.15+ with BTF enabled
 - BPF-LSM enabled (`CONFIG_BPF_LSM=y`, `lsm=bpf` in boot params)
-- Rust nightly (for eBPF compilation)
 - Root privileges (for BPF program loading)
 
 ## Quick Start
 
 ```bash
-# Build everything
+# If built from source:
 cargo xtask build --release
 
 # See enforcement in action — one command, handles everything
@@ -123,9 +151,12 @@ Rules support `path` and `argv` glob patterns for fine-grained filtering. See [P
 
 | Doc | Description |
 |-----|-------------|
-| **[Quick Start](docs/quickstart.md)** | See enforcement in one command |
+| **[Quick Start](docs/quickstart.md)** | Install and see enforcement in one command |
+| [Architecture](docs/architecture.md) | System design, data flow, BPF maps, security model |
 | [Policy Reference](docs/policies.md) | Schema, event types, actions, examples |
+| [Feedback Protocol](docs/feedback-protocol.md) | Structured violation events for agent self-correction |
 | [Use Cases](docs/usecases.md) | 8 real-world scenarios with ready-to-use policies |
+| [Agent Adapters](adapters/README.md) | Hook scripts for Claude Code, Codex, Gemini CLI |
 | [Development Guide](docs/development.md) | Kernel setup, building, VM testing, debugging |
 | [Contributing](CONTRIBUTING.md) | How to contribute, code style, CI |
 | [Security Policy](SECURITY.md) | Reporting vulnerabilities |
