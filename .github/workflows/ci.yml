@@ -8,12 +8,13 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: -Dwarnings
 
 jobs:
   check-userspace:
     name: Check userspace crates
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -Dwarnings
     steps:
       - uses: actions/checkout@v4
 
@@ -74,6 +75,8 @@ jobs:
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -Dwarnings
     steps:
       - uses: actions/checkout@v4
 
@@ -97,6 +100,8 @@ jobs:
   test:
     name: Tests
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -Dwarnings
     steps:
       - uses: actions/checkout@v4
 

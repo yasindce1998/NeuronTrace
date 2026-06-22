@@ -15,13 +15,3 @@ aya-log-ebpf = "0.1"
 [[bin]]
 name = "neurontrace-ebpf"
 path = "src/main.rs"
-
-[profile.dev]
-opt-level = 2
-overflow-checks = false
-debug-assertions = false
-panic = "abort"
-
-[profile.release]
-panic = "abort"
-lto = true

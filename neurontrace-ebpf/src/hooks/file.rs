@@ -5,8 +5,8 @@ use crate::maps::EVENTS;
 use crate::policy::{check_generation, check_policy};
 use neurontrace_common::{EventType, NtEvent, PolicyAction, MAX_ARGV_LEN, MAX_PATH_LEN};
 
-pub fn handle_file_open(ctx: &LsmContext) -> Result<i32, i64> {
-    let pid_tgid = unsafe { bpf_get_current_pid_tgid() };
+pub fn handle_file_open(_ctx: &LsmContext) -> Result<i32, i64> {
+    let pid_tgid = bpf_get_current_pid_tgid();
     let pid = (pid_tgid >> 32) as u32;
     let tgid = pid_tgid as u32;
 
@@ -34,8 +34,8 @@ pub fn handle_file_open(ctx: &LsmContext) -> Result<i32, i64> {
     }
 }
 
-pub fn handle_unlink(ctx: &LsmContext) -> Result<i32, i64> {
-    let pid_tgid = unsafe { bpf_get_current_pid_tgid() };
+pub fn handle_unlink(_ctx: &LsmContext) -> Result<i32, i64> {
+    let pid_tgid = bpf_get_current_pid_tgid();
     let pid = (pid_tgid >> 32) as u32;
     let tgid = pid_tgid as u32;
 
@@ -58,8 +58,8 @@ pub fn handle_unlink(ctx: &LsmContext) -> Result<i32, i64> {
     }
 }
 
-pub fn handle_rename(ctx: &LsmContext) -> Result<i32, i64> {
-    let pid_tgid = unsafe { bpf_get_current_pid_tgid() };
+pub fn handle_rename(_ctx: &LsmContext) -> Result<i32, i64> {
+    let pid_tgid = bpf_get_current_pid_tgid();
     let pid = (pid_tgid >> 32) as u32;
     let tgid = pid_tgid as u32;
 

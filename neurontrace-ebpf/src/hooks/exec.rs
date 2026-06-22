@@ -5,8 +5,8 @@ use crate::maps::EVENTS;
 use crate::policy::{check_generation, check_policy};
 use neurontrace_common::{EventType, NtEvent, PolicyAction, MAX_ARGV_LEN, MAX_PATH_LEN};
 
-pub fn handle_exec(ctx: &LsmContext) -> Result<i32, i64> {
-    let pid_tgid = unsafe { bpf_get_current_pid_tgid() };
+pub fn handle_exec(_ctx: &LsmContext) -> Result<i32, i64> {
+    let pid_tgid = bpf_get_current_pid_tgid();
     let pid = (pid_tgid >> 32) as u32;
     let tgid = pid_tgid as u32;
 

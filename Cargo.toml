@@ -17,3 +17,11 @@ authors = ["Mohammed Yasin <yasindce1998@gmail.com>"]
 [workspace.dependencies]
 neurontrace-common = { path = "neurontrace-common" }
 thiserror = "2"
+
+[profile.dev.package.neurontrace-ebpf]
+opt-level = 2
+overflow-checks = false
+debug-assertions = false
+
+[profile.release.package.neurontrace-ebpf]
+lto = true

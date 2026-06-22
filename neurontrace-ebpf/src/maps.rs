@@ -1,7 +1,7 @@
 use aya_ebpf::macros::map;
 use aya_ebpf::maps::{Array, HashMap, LruHashMap, RingBuf};
 use neurontrace_common::{
-    GenerationCounter, NtEvent, PolicyKey, PolicyValue, ProcessLabels, RING_BUF_SIZE,
+    GenerationCounter, PolicyKey, PolicyValue, ProcessLabels, RING_BUF_SIZE,
 };
 
 #[map]

@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(feature = "user"), no_std)]
 
 pub const MAX_LABEL_LEN: usize = 64;
 pub const MAX_PATH_LEN: usize = 256;

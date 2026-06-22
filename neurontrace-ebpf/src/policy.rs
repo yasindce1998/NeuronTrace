@@ -9,7 +9,7 @@ pub fn check_policy(pid: u32, event_type: EventType) -> PolicyAction {
         return PolicyAction::Allow;
     }
 
-    let cgroup_id = unsafe { bpf_get_current_cgroup_id() };
+    let cgroup_id = bpf_get_current_cgroup_id();
 
     let key = PolicyKey {
         cgroup_id,
