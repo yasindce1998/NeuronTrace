@@ -24,4 +24,4 @@ overflow-checks = false
 debug-assertions = false
 
 [profile.release.package.neurontrace-ebpf]
-lto = true
+opt-level = "z"
