@@ -38,9 +38,7 @@ pub fn read_kernel_ptr(src: *const u8) -> *const u8 {
 #[inline(always)]
 pub fn read_kernel_u32(src: *const u8) -> Option<u32> {
     let mut val: u32 = 0;
-    let ret = unsafe {
-        bpf_probe_read_kernel(&mut val as *mut u32 as *mut u8, 4, src)
-    };
+    let ret = unsafe { bpf_probe_read_kernel(&mut val as *mut u32 as *mut u8, 4, src) };
     if ret < 0 {
         None
     } else {
