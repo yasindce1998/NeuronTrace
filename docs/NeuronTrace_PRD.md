@@ -29,10 +29,11 @@
 6. [Generation-Tagged Mode](#6-generation-tagged-mode)
 7. [Starter Policy Packs](#7-starter-policy-packs)
 8. [Feedback Loop](#8-feedback-loop)
-9. [Performance and Stability](#9-performance-and-stability)
-10. [Success Criteria](#10-success-criteria)
-11. [v0.2 Roadmap — Graph Mode & Defer](#11-v02-roadmap--graph-mode--defer)
-12. [v0.3 Roadmap — Platform Expansion & Ecosystem](#12-v03-roadmap--platform-expansion--ecosystem)
+9. [Self-Protection](#9-self-protection)
+10. [Performance and Stability](#10-performance-and-stability)
+11. [Success Criteria](#11-success-criteria)
+12. [v0.2 Roadmap — Graph Mode & Defer](#12-v02-roadmap--graph-mode--defer)
+13. [v0.3 Roadmap — Platform Expansion & Ecosystem](#13-v03-roadmap--platform-expansion--ecosystem)
 
 ---
 
@@ -288,9 +289,81 @@ The agent receives enough context to self-correct (try an alternative approach) 
 
 ---
 
-## 9. Performance and Stability
+## 9. Self-Protection
 
-### 9.1 Performance
+*As a security engineer, I need NeuronTrace to be unkillable from inside the cgroup — so a compromised agent cannot disable enforcement by killing the controller process or unloading BPF programs.*
+
+### 9.1 Threat
+
+An agent discovers NeuronTrace is running and attempts to:
+1. Kill the userspace process (`kill(nrt_pid, SIGKILL)`)
+2. Unpin BPF programs from bpffs
+3. Attach a debugger to corrupt NeuronTrace state
+
+### 9.2 Defense: BPF Pinning
+
+BPF programs and maps are pinned to `/sys/fs/bpf/neurontrace/` at load time. If the userspace process dies (crash, OOM, or attack), enforcement **continues in-kernel**. The hooks keep blocking syscalls — only the violation logger stops.
+
+```
+Agent kills NRT process → BPF hooks still attached → enforcement persists
+Operator runs `neurontrace unload` → unpins from bpffs → hooks removed
+```
+
+### 9.3 Defense: `task_kill` LSM Hook
+
+A 7th LSM hook on `task_kill` blocks signal delivery from processes inside the enforcement cgroup to PIDs outside it:
+
+| Signal source | Target | Result |
+|---|---|---|
+| Inside cgroup | NeuronTrace PID | **BLOCKED** |
+| Inside cgroup | Other cgroup process | Allowed (intra-cgroup) |
+| Outside cgroup (operator) | NeuronTrace PID | Allowed |
+| Outside cgroup (operator) | Any PID | Allowed |
+
+The PID allowlist already exempts NeuronTrace — extend that logic to signal delivery.
+
+### 9.4 Defense Layers (Summary)
+
+```
+┌─────────────────────────────────────────┐
+│ Operator (outside cgroup)               │
+│  • Can kill NRT process                 │
+│  • Can unpin BPF programs               │
+│  • Can delete the cgroup                │
+│  • Full control                         │
+├─────────────────────────────────────────┤
+│ NeuronTrace (PID allowlist)             │
+│  • Self-exempted from enforcement       │
+│  • Manages policy maps                  │
+│  • Reads ring buffer                    │
+├─────────────────────────────────────────┤
+│ Agent (inside cgroup)                   │
+│  • Can't kill NRT (signal blocked)      │
+│  • Can't exec kill command (exec block) │
+│  • Can't unpin (no bpffs access)        │
+│  • Can't ptrace (ptrace hook blocks)    │
+│  • Sees only -EPERM                     │
+└─────────────────────────────────────────┘
+```
+
+### 9.5 Stopping NeuronTrace (Operator Path)
+
+```bash
+# Normal stop — operator is outside cgroup, signals allowed
+Ctrl+C / kill $(pidof neurontrace)
+
+# Unload pinned BPF programs (enforcement stops)
+sudo neurontrace unload
+
+# Manual cleanup (if process already dead)
+sudo rm -rf /sys/fs/bpf/neurontrace/
+```
+
+---
+
+## 10. Performance and Stability
+
+### 10.1 Performance
 
 - Cgroup-scoped attach — zero overhead on non-agent processes
 - Label storage in LRU hash map — bounded memory, O(1) lookups
@@ -298,7 +371,7 @@ The agent receives enough context to self-correct (try an alternative approach) 
 - Ring buffer (256KB–1MB configurable) for async event delivery to CLI stats
 - Target: <1μs per-syscall overhead for allow-path (label check + generation compare)
 
-### 9.2 Stability
+### 10.2 Stability
 
 - **Fail-safe on crash:** fail-open by default (loud warning to stderr/syslog), fail-closed configurable
 - **Clean detach:** BPF programs unpinned on exit/signal — no stale enforcement after controller dies
@@ -306,7 +379,7 @@ The agent receives enough context to self-correct (try an alternative approach) 
 - **Symlink resolution:** rules match resolved paths, not argv[0]
 - **Minimum kernel:** 5.15 with BTF (CO-RE for portability)
 
-### 9.3 CLI
+### 10.3 CLI
 
 ```
 $ neurontrace status
@@ -320,31 +393,31 @@ $ neurontrace status
 
 ---
 
-## 10. Success Criteria
+## 11. Success Criteria
 
-### 10.1 Demo (Week 2-3)
+### 11.1 Demo (Week 2-3)
 
 End-to-end: an agent attempts a prompt-injection pattern (curl-pipe-sh, credential read, network exfil) → blocked → structured feedback delivered → agent self-corrects.
 
-### 10.2 Differentiation (Week 3-4)
+### 11.2 Differentiation (Week 3-4)
 
 Generation-tagging demo: agent leaks data across task boundaries → blocked in-kernel. This is something ActPlane cannot do.
 
-### 10.3 Deployability (Week 4)
+### 11.3 Deployability (Week 4)
 
 A user installs with `cargo install neurontrace`, runs with a starter policy, sees violations in audit mode, promotes to enforce — all within 2 minutes, no kernel knowledge required.
 
-### 10.4 Benchmarks (Week 4)
+### 11.4 Benchmarks (Week 4)
 
 Published overhead numbers: per-syscall latency (allow path), exec-heavy workload comparison (with/without NeuronTrace), ring buffer drop rate under stress.
 
 ---
 
-## 11. v0.2 Roadmap — Graph Mode & Defer
+## 12. v0.2 Roadmap — Graph Mode & Defer
 
 *Target: 4-6 weeks after v0.1 ships. Only build if v0.1 usage data confirms generation-tagging is insufficient for real-world multi-hop violations.*
 
-### 11.1 Graph Mode
+### 12.1 Graph Mode
 
 *As a security researcher, I can query whether data from source A reached sink C through any intermediate path — even if no single hop violated policy — so I can detect complex exfiltration chains.*
 
@@ -354,7 +427,7 @@ Published overhead numbers: per-syscall latency (allow path), exec-heavy workloa
 - **Graph storage**: in-memory adjacency list with bounded depth (configurable, default 4 hops)
 - **Query API**: `neurontrace query --from <label> --to <label>` returns all paths
 
-### 11.2 Defer Effect
+### 12.2 Defer Effect
 
 *As a user, I can configure "ask me first" rules for ambiguous actions — the agent pauses, I approve or deny, and it resumes — so I retain human oversight without pre-deciding every edge case.*
 
@@ -363,7 +436,7 @@ Published overhead numbers: per-syscall latency (allow path), exec-heavy workloa
 - Timeout: configurable (default 30s), falls back to block on timeout
 - Delivery: terminal prompt, Unix socket notification, or webhook
 
-### 11.3 seccomp-notify Integration
+### 12.3 seccomp-notify Integration
 
 *As an advanced user, I can intercept and rewrite syscall arguments (e.g., redirect file opens to sanitized copies) instead of binary allow/deny.*
 
@@ -371,7 +444,7 @@ Published overhead numbers: per-syscall latency (allow path), exec-heavy workloa
 - Enables response injection: return fake file descriptors with sanitized content
 - Research-stage in v0.2 — API design only, implementation in v0.3 if viable
 
-### 11.4 Enhanced Policy Language
+### 12.4 Enhanced Policy Language
 
 - Glob patterns for paths (`/home/*/project/**`)
 - Time-based rules (block network after 5 minutes)
@@ -380,11 +453,11 @@ Published overhead numbers: per-syscall latency (allow path), exec-heavy workloa
 
 ---
 
-## 12. v0.3 Roadmap — Platform Expansion & Ecosystem
+## 13. v0.3 Roadmap — Platform Expansion & Ecosystem
 
 *Target: 8-12 weeks after v0.2. Contingent on community adoption and demand signals.*
 
-### 12.1 Cross-Platform Research
+### 13.1 Cross-Platform Research
 
 *As a macOS or Windows user, I want equivalent kernel-level containment for AI agents running on my platform.*
 
@@ -392,7 +465,7 @@ Published overhead numbers: per-syscall latency (allow path), exec-heavy workloa
 - **Windows**: ETW (Event Tracing for Windows) + minifilter drivers — significantly different architecture
 - Outcome: architecture assessment document, not necessarily a shipped product. Ship only if demand justifies investment.
 
-### 12.2 Warmor Integration
+### 13.2 Warmor Integration
 
 *As a Warmor user, I can activate NeuronTrace as an "agent containment" policy profile within Warmor's cross-platform framework — one tool for both system-wide and agent-specific enforcement.*
 
@@ -400,7 +473,7 @@ Published overhead numbers: per-syscall latency (allow path), exec-heavy workloa
 - Shared event pipeline: NeuronTrace violations appear in Warmor's audit stream
 - Prerequisite: both projects must have stable v1.0 APIs independently
 
-### 12.3 Container & Orchestrator Support
+### 13.3 Container & Orchestrator Support
 
 *As a platform engineer, I can deploy NeuronTrace enforcement across a fleet of agent containers using standard orchestrator primitives (DaemonSet, sidecar).*
 
@@ -409,7 +482,7 @@ Published overhead numbers: per-syscall latency (allow path), exec-heavy workloa
 - Helm chart with per-namespace policy configuration
 - Multi-tenant: different policies per namespace/pod label
 
-### 12.4 Observability & Audit Trail
+### 13.4 Observability & Audit Trail
 
 *As a compliance auditor, I can retrieve a complete, tamper-evident log of every enforcement decision made by NeuronTrace across all agents in my fleet.*
 
@@ -418,7 +491,7 @@ Published overhead numbers: per-syscall latency (allow path), exec-heavy workloa
 - Grafana dashboard templates for violation rates, latency, generation drift
 - Alert rules: generation stuck (agent not signaling boundaries), ring buffer drops, policy load failures
 
-### 12.5 Agent SDK Integration
+### 13.5 Agent SDK Integration
 
 *As an agent framework developer, I can integrate NeuronTrace awareness directly into my SDK — so agents receive violation context natively without custom hook wiring.*
 

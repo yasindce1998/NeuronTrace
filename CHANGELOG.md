@@ -17,7 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cgroup-scoped enforcement targeting only agent process trees
 - Ring buffer event pipeline for violation reporting
 - PID allowlist for controller self-exemption
-- CLI with `run`, `validate`, and `bump` commands
+- Self-protection: BPF pinning to `/sys/fs/bpf/neurontrace/` — enforcement persists if userspace process dies
+- Self-protection: `task_kill` LSM hook — blocks signals from inside cgroup targeting external PIDs
+- CLI with `run`, `validate`, `bump`, and `unload` commands
+- Single-command demo script (`scripts/demo.sh`)
 - Architecture documentation and development guide
 
 [Unreleased]: https://github.com/yasindce1998/NeuronTrace/compare/main...HEAD
