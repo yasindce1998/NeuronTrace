@@ -1,3 +1,4 @@
+use globset::{Glob, GlobMatcher};
 use neurontrace_common::{EventType, PolicyAction, PolicyKey, PolicyValue};
 use serde::Deserialize;
 
@@ -11,7 +12,7 @@ pub struct PolicySet {
 
 impl PolicySet {
     pub fn event_types_covered(&self) -> usize {
-        let mut seen = [false; 8];
+        let mut seen = [false; 9];
         for rule in &self.rules {
             let idx = rule.event_type.to_u8() as usize;
             if idx < seen.len() {
@@ -19,6 +20,72 @@ impl PolicySet {
             }
         }
         seen.iter().filter(|&&v| v).count()
+    }
+
+    pub fn compile(&self) -> CompiledPolicy {
+        let mut entries = Vec::new();
+        for rule in &self.rules {
+            let path_matcher = rule
+                .path
+                .as_ref()
+                .and_then(|p| Glob::new(p).ok())
+                .map(|g| g.compile_matcher());
+            let argv_matcher = rule
+                .argv
+                .as_ref()
+                .and_then(|a| Glob::new(a).ok())
+                .map(|g| g.compile_matcher());
+            entries.push(CompiledRule {
+                event_type: rule.event_type.to_u8(),
+                action: rule.action,
+                path_matcher,
+                argv_matcher,
+            });
+        }
+        CompiledPolicy { entries }
+    }
+}
+
+pub struct CompiledPolicy {
+    entries: Vec<CompiledRule>,
+}
+
+struct CompiledRule {
+    event_type: u8,
+    action: PolicyActionType,
+    path_matcher: Option<GlobMatcher>,
+    argv_matcher: Option<GlobMatcher>,
+}
+
+impl CompiledPolicy {
+    pub fn match_event(&self, event_type: u8, path: &str, argv: &str) -> Option<PolicyActionType> {
+        let mut default_action = None;
+        for rule in &self.entries {
+            if rule.event_type != event_type {
+                continue;
+            }
+            match (&rule.path_matcher, &rule.argv_matcher) {
+                (None, None) => {
+                    default_action = Some(rule.action);
+                }
+                (Some(pm), None) => {
+                    if pm.is_match(path) {
+                        return Some(rule.action);
+                    }
+                }
+                (None, Some(am)) => {
+                    if am.is_match(argv) {
+                        return Some(rule.action);
+                    }
+                }
+                (Some(pm), Some(am)) => {
+                    if pm.is_match(path) && am.is_match(argv) {
+                        return Some(rule.action);
+                    }
+                }
+            }
+        }
+        default_action
     }
 }
 
@@ -28,6 +95,10 @@ pub struct PolicyRule {
     pub action: PolicyActionType,
     #[serde(default)]
     pub cgroup_id: u64,
+    #[serde(default)]
+    pub path: Option<String>,
+    #[serde(default)]
+    pub argv: Option<String>,
     #[serde(default)]
     #[allow(dead_code)]
     pub description: String,

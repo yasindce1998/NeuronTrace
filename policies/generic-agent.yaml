@@ -9,8 +9,18 @@ rules:
     description: No subprocess spawning
 
   - event_type: open
+    action: block
+    path: "/etc/shadow"
+    description: Block access to sensitive credentials
+
+  - event_type: open
+    action: block
+    path: "/etc/passwd"
+    description: Block access to user database
+
+  - event_type: open
     action: audit
-    description: Audit all file access
+    description: Audit all other file access
 
   - event_type: unlink
     action: block
@@ -27,3 +37,7 @@ rules:
   - event_type: ptrace
     action: block
     description: No ptrace
+
+  - event_type: task_kill
+    action: block
+    description: No signal sending

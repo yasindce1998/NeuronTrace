@@ -27,6 +27,10 @@ pub enum Command {
         /// Unix socket or file path for structured violation feedback
         #[arg(long, default_value = "/run/neurontrace/feedback.sock")]
         feedback: PathBuf,
+
+        /// Audit-only mode: observe without enforcing (all actions become audit)
+        #[arg(long)]
+        audit_only: bool,
     },
 
     /// Validate a policy file without loading BPF
@@ -41,4 +45,7 @@ pub enum Command {
 
     /// Unload pinned BPF programs and maps, stopping enforcement
     Unload,
+
+    /// Show current NeuronTrace enforcement status
+    Status,
 }

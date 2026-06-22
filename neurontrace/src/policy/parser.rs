@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use globset::Glob;
 use std::path::Path;
 
 use super::types::PolicySet;
@@ -20,5 +21,17 @@ fn validate_policy(policy: &PolicySet) -> Result<()> {
         !policy.rules.is_empty(),
         "policy must have at least one rule"
     );
+
+    for (i, rule) in policy.rules.iter().enumerate() {
+        if let Some(ref pattern) = rule.path {
+            Glob::new(pattern)
+                .with_context(|| format!("invalid path glob in rule {}: '{}'", i + 1, pattern))?;
+        }
+        if let Some(ref pattern) = rule.argv {
+            Glob::new(pattern)
+                .with_context(|| format!("invalid argv glob in rule {}: '{}'", i + 1, pattern))?;
+        }
+    }
+
     Ok(())
 }

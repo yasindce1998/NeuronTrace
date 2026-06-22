@@ -5,8 +5,18 @@ description: >
 
 rules:
   - event_type: exec
+    action: allow
+    path: "/usr/bin/python*"
+    description: Allow Python interpreters
+
+  - event_type: exec
+    action: allow
+    path: "/usr/bin/node"
+    description: Allow Node.js for tooling
+
+  - event_type: exec
     action: audit
-    description: Audit exec calls — Codex spawns subprocesses for tool use
+    description: Audit all other exec calls
 
   - event_type: open
     action: allow
@@ -27,3 +37,7 @@ rules:
   - event_type: ptrace
     action: block
     description: Block ptrace — no process inspection
+
+  - event_type: task_kill
+    action: block
+    description: Prevent killing controller process

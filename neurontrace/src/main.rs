@@ -28,14 +28,20 @@ async fn main() -> Result<()> {
             policy,
             cgroup,
             feedback: feedback_path,
+            audit_only,
         } => {
             info!("loading policy from {}", policy.display());
             let policy_set = policy::load_policy(&policy)?;
+            let compiled = policy_set.compile();
+
+            if audit_only {
+                info!("AUDIT-ONLY mode: all enforcement actions overridden to audit");
+            }
 
             info!("attaching to cgroup {}", cgroup.display());
             let mut engine = bpf::BpfEngine::new()?;
             engine.load_and_attach()?;
-            engine.apply_policy(&policy_set)?;
+            engine.apply_policy(&policy_set, audit_only)?;
 
             let cgroup_id = cgroup::setup_cgroup(&cgroup)?;
             info!(cgroup_id, "cgroup configured");
@@ -43,7 +49,9 @@ async fn main() -> Result<()> {
             let mut feedback_sender = feedback::FeedbackSender::new(&feedback_path);
 
             info!("neurontrace enforcement active — default-deny enabled");
-            engine.run_event_loop(&mut feedback_sender).await?;
+            engine
+                .run_event_loop(&mut feedback_sender, Some(&compiled))
+                .await?;
         }
         Command::Validate { policy } => {
             info!("validating policy: {}", policy.display());
@@ -53,6 +61,15 @@ async fn main() -> Result<()> {
                 policy_set.rules.len(),
                 policy_set.event_types_covered(),
             );
+            for rule in &policy_set.rules {
+                let filter = match (&rule.path, &rule.argv) {
+                    (Some(p), Some(a)) => format!(" [path={}, argv={}]", p, a),
+                    (Some(p), None) => format!(" [path={}]", p),
+                    (None, Some(a)) => format!(" [argv={}]", a),
+                    (None, None) => String::new(),
+                };
+                println!("  {:?} → {:?}{}", rule.event_type, rule.action, filter);
+            }
         }
         Command::Bump => {
             info!("bumping generation counter");
@@ -65,6 +82,22 @@ async fn main() -> Result<()> {
             info!("unloading pinned BPF programs");
             bpf::BpfEngine::unload()?;
             println!("NeuronTrace enforcement stopped — BPF programs unpinned");
+        }
+        Command::Status => {
+            let status = bpf::BpfEngine::status()?;
+            if status.active {
+                println!("NeuronTrace: ACTIVE");
+                println!("  Programs ({}):", status.programs.len());
+                for prog in &status.programs {
+                    println!("    - {}", prog);
+                }
+                println!("  Maps ({}):", status.maps.len());
+                for map in &status.maps {
+                    println!("    - {}", map);
+                }
+            } else {
+                println!("NeuronTrace: INACTIVE (no pinned programs found)");
+            }
         }
     }
 

@@ -5,20 +5,40 @@ description: >
 
 rules:
   - event_type: exec
+    action: allow
+    path: "/usr/bin/git"
+    description: Allow git operations
+
+  - event_type: exec
+    action: allow
+    path: "/usr/bin/node"
+    description: Allow node for tooling
+
+  - event_type: exec
     action: block
-    description: Block subprocess spawning unless explicitly allowed
+    description: Block all other subprocess spawning
 
   - event_type: open
     action: allow
     description: Allow file reads/writes within cgroup scope
 
   - event_type: unlink
+    action: block
+    path: "/etc/**"
+    description: Block deletion of system config files
+
+  - event_type: unlink
     action: audit
-    description: Audit file deletions for review
+    description: Audit other file deletions for review
 
   - event_type: rename
     action: allow
     description: Allow file renames within workspace
+
+  - event_type: connect
+    action: allow
+    path: "127.0.0.1:*"
+    description: Allow localhost connections (LSP, dev servers)
 
   - event_type: connect
     action: block
@@ -27,3 +47,7 @@ rules:
   - event_type: ptrace
     action: block
     description: Block ptrace — no debugging other processes
+
+  - event_type: task_kill
+    action: block
+    description: Prevent killing controller process

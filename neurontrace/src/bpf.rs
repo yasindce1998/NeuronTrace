@@ -9,7 +9,7 @@ use tracing::info;
 
 use crate::events;
 use crate::feedback::FeedbackSender;
-use crate::policy::PolicySet;
+use crate::policy::{CompiledPolicy, PolicySet};
 
 const PIN_BASE: &str = "/sys/fs/bpf/neurontrace";
 const PIN_PROGS: &str = "/sys/fs/bpf/neurontrace/progs";
@@ -102,7 +102,44 @@ impl BpfEngine {
         Ok(())
     }
 
-    pub fn apply_policy(&mut self, policy_set: &PolicySet) -> Result<()> {
+    pub fn status() -> Result<BpfStatus> {
+        let pin_base = Path::new(PIN_BASE);
+        if !pin_base.exists() {
+            return Ok(BpfStatus {
+                active: false,
+                programs: vec![],
+                maps: vec![],
+            });
+        }
+
+        let progs_dir = Path::new(PIN_PROGS);
+        let programs = if progs_dir.exists() {
+            std::fs::read_dir(progs_dir)?
+                .filter_map(|e| e.ok())
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .collect()
+        } else {
+            vec![]
+        };
+
+        let maps_dir = Path::new(PIN_MAPS);
+        let maps = if maps_dir.exists() {
+            std::fs::read_dir(maps_dir)?
+                .filter_map(|e| e.ok())
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .collect()
+        } else {
+            vec![]
+        };
+
+        Ok(BpfStatus {
+            active: !programs.is_empty(),
+            programs,
+            maps,
+        })
+    }
+
+    pub fn apply_policy(&mut self, policy_set: &PolicySet, audit_only: bool) -> Result<()> {
         let mut policy_map: HashMap<_, PolicyKey, PolicyValue> = HashMap::try_from(
             self.bpf
                 .map_mut("POLICY_MAP")
@@ -111,11 +148,25 @@ impl BpfEngine {
 
         for rule in &policy_set.rules {
             let key = rule.to_policy_key();
-            let value = rule.to_policy_value();
+            let value = if audit_only {
+                PolicyValue {
+                    action: neurontrace_common::PolicyAction::Audit as u8,
+                    _padding: [0u8; 7],
+                }
+            } else {
+                rule.to_policy_value()
+            };
             policy_map.insert(key, value, 0)?;
         }
 
-        info!(count = policy_set.rules.len(), "policy rules loaded");
+        if audit_only {
+            info!(
+                count = policy_set.rules.len(),
+                "policy rules loaded (AUDIT-ONLY mode — no enforcement)"
+            );
+        } else {
+            info!(count = policy_set.rules.len(), "policy rules loaded");
+        }
         Ok(())
     }
 
@@ -137,14 +188,18 @@ impl BpfEngine {
         Ok(new_gen)
     }
 
-    pub async fn run_event_loop(&mut self, feedback: &mut FeedbackSender) -> Result<()> {
+    pub async fn run_event_loop(
+        &mut self,
+        feedback: &mut FeedbackSender,
+        compiled_policy: Option<&CompiledPolicy>,
+    ) -> Result<()> {
         let ring_buf = RingBuf::try_from(
             self.bpf
                 .map_mut("EVENTS")
                 .context("EVENTS ring buffer not found")?,
         )?;
 
-        events::consume_events(ring_buf, feedback).await
+        events::consume_events(ring_buf, feedback, compiled_policy).await
     }
 
     fn register_self_in_allowlist(&mut self) -> Result<()> {
@@ -159,6 +214,12 @@ impl BpfEngine {
         info!(pid = my_pid, "registered controller in PID allowlist");
         Ok(())
     }
+}
+
+pub struct BpfStatus {
+    pub active: bool,
+    pub programs: Vec<String>,
+    pub maps: Vec<String>,
 }
 
 macro_rules! include_bytes_aligned {
