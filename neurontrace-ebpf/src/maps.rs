@@ -1,16 +1,12 @@
 use aya_ebpf::macros::map;
 use aya_ebpf::maps::{Array, HashMap, LruHashMap, RingBuf};
-use neurontrace_common::{
-    GenerationCounter, PolicyKey, PolicyValue, ProcessLabels, RING_BUF_SIZE,
-};
+use neurontrace_common::{GenerationCounter, PolicyKey, PolicyValue, ProcessLabels, RING_BUF_SIZE};
 
 #[map]
-pub static POLICY_MAP: HashMap<PolicyKey, PolicyValue> =
-    HashMap::with_max_entries(1024, 0);
+pub static POLICY_MAP: HashMap<PolicyKey, PolicyValue> = HashMap::with_max_entries(1024, 0);
 
 #[map]
-pub static LABEL_MAP: LruHashMap<u32, ProcessLabels> =
-    LruHashMap::with_max_entries(4096, 0);
+pub static LABEL_MAP: LruHashMap<u32, ProcessLabels> = LruHashMap::with_max_entries(4096, 0);
 
 #[map]
 pub static GENERATION: Array<GenerationCounter> = Array::with_max_entries(1, 0);

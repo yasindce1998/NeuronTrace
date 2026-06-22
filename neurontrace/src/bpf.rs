@@ -3,7 +3,7 @@ use aya::maps::{Array, HashMap, RingBuf};
 use aya::programs::Lsm;
 use aya::{Btf, Ebpf};
 use neurontrace_common::{GenerationCounter, PolicyKey, PolicyValue};
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::events;
 use crate::policy::PolicySet;
@@ -23,7 +23,6 @@ pub struct BpfEngine {
 
 impl BpfEngine {
     pub fn new() -> Result<Self> {
-        let btf = Btf::from_sys_fs().context("failed to load BTF from /sys/kernel/btf/vmlinux")?;
         let bpf = Ebpf::load(include_bytes_aligned!(concat!(
             env!("OUT_DIR"),
             "/neurontrace-ebpf"

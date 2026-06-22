@@ -104,9 +104,7 @@ fn build_userspace(release: bool) -> Result<()> {
         cmd.arg("--release");
     }
 
-    let status = cmd
-        .status()
-        .context("failed to build userspace binary")?;
+    let status = cmd.status().context("failed to build userspace binary")?;
 
     if !status.success() {
         bail!("userspace build failed");

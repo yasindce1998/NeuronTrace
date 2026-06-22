@@ -9,7 +9,7 @@ pub fn check_policy(pid: u32, event_type: EventType) -> PolicyAction {
         return PolicyAction::Allow;
     }
 
-    let cgroup_id = bpf_get_current_cgroup_id();
+    let cgroup_id = unsafe { bpf_get_current_cgroup_id() };
 
     let key = PolicyKey {
         cgroup_id,
@@ -30,7 +30,7 @@ pub fn check_policy(pid: u32, event_type: EventType) -> PolicyAction {
 }
 
 pub fn check_generation(pid: u32) -> bool {
-    let current_gen = match unsafe { GENERATION.get(0) } {
+    let current_gen = match GENERATION.get(0) {
         Some(g) => g.current,
         None => return true, // no generation tracking active
     };

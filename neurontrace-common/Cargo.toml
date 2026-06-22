@@ -9,8 +9,9 @@ authors.workspace = true
 
 [features]
 default = []
-user = ["thiserror", "serde"]
+user = ["thiserror", "serde", "aya"]
 
 [dependencies]
 thiserror = { workspace = true, optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
+aya = { version = "0.13", optional = true }

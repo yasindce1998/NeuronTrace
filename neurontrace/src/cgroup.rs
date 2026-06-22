@@ -16,15 +16,19 @@ pub fn setup_cgroup(path: &Path) -> Result<u64> {
 
 fn get_cgroup_id(path: &Path) -> Result<u64> {
     use std::os::unix::fs::MetadataExt;
-    let meta = fs::metadata(path)
-        .with_context(|| format!("failed to stat cgroup {}", path.display()))?;
+    let meta =
+        fs::metadata(path).with_context(|| format!("failed to stat cgroup {}", path.display()))?;
     Ok(meta.ino())
 }
 
 pub fn add_pid_to_cgroup(cgroup_path: &Path, pid: u32) -> Result<()> {
     let procs_file = cgroup_path.join("cgroup.procs");
-    fs::write(&procs_file, pid.to_string())
-        .with_context(|| format!("failed to add pid {pid} to cgroup {}", cgroup_path.display()))?;
+    fs::write(&procs_file, pid.to_string()).with_context(|| {
+        format!(
+            "failed to add pid {pid} to cgroup {}",
+            cgroup_path.display()
+        )
+    })?;
     info!(pid, cgroup = %cgroup_path.display(), "added process to cgroup");
     Ok(())
 }

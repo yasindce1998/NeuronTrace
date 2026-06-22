@@ -7,23 +7,19 @@ use neurontrace_common::{LabelEntry, ProcessLabels, MAX_LABELS_PER_PROCESS, MAX_
 use tracing::info;
 
 pub fn assign_label(bpf: &mut Ebpf, pid: u32, label: &str, generation: u32) -> Result<()> {
-    let mut label_map: HashMap<_, u32, ProcessLabels> = HashMap::try_from(
-        bpf.map_mut("LABEL_MAP")
-            .context("LABEL_MAP not found")?,
-    )?;
+    let mut label_map: HashMap<_, u32, ProcessLabels> =
+        HashMap::try_from(bpf.map_mut("LABEL_MAP").context("LABEL_MAP not found")?)?;
 
-    let mut process_labels = label_map
-        .get(&pid, 0)
-        .unwrap_or_else(|_| ProcessLabels {
-            labels: [LabelEntry {
-                label: [0u8; MAX_LABEL_LEN],
-                label_len: 0,
-                generation: 0,
-                _padding: 0,
-            }; MAX_LABELS_PER_PROCESS],
-            count: 0,
-            _padding: [0u8; 7],
-        });
+    let mut process_labels = label_map.get(&pid, 0).unwrap_or_else(|_| ProcessLabels {
+        labels: [LabelEntry {
+            label: [0u8; MAX_LABEL_LEN],
+            label_len: 0,
+            generation: 0,
+            _padding: 0,
+        }; MAX_LABELS_PER_PROCESS],
+        count: 0,
+        _padding: [0u8; 7],
+    });
 
     let idx = process_labels.count as usize;
     if idx >= MAX_LABELS_PER_PROCESS {
@@ -49,10 +45,8 @@ pub fn assign_label(bpf: &mut Ebpf, pid: u32, label: &str, generation: u32) -> R
 }
 
 pub fn clear_labels(bpf: &mut Ebpf, pid: u32) -> Result<()> {
-    let mut label_map: HashMap<_, u32, ProcessLabels> = HashMap::try_from(
-        bpf.map_mut("LABEL_MAP")
-            .context("LABEL_MAP not found")?,
-    )?;
+    let mut label_map: HashMap<_, u32, ProcessLabels> =
+        HashMap::try_from(bpf.map_mut("LABEL_MAP").context("LABEL_MAP not found")?)?;
 
     label_map.remove(&pid)?;
     info!(pid, "labels cleared for process");

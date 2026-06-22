@@ -16,6 +16,9 @@ pub fn load_policy(path: &Path) -> Result<PolicySet> {
 
 fn validate_policy(policy: &PolicySet) -> Result<()> {
     anyhow::ensure!(!policy.name.is_empty(), "policy name cannot be empty");
-    anyhow::ensure!(!policy.rules.is_empty(), "policy must have at least one rule");
+    anyhow::ensure!(
+        !policy.rules.is_empty(),
+        "policy must have at least one rule"
+    );
     Ok(())
 }

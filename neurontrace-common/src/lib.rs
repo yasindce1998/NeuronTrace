@@ -85,6 +85,17 @@ pub struct ProcessLabels {
 }
 
 #[cfg(feature = "user")]
+unsafe impl aya::Pod for PolicyKey {}
+#[cfg(feature = "user")]
+unsafe impl aya::Pod for PolicyValue {}
+#[cfg(feature = "user")]
+unsafe impl aya::Pod for GenerationCounter {}
+#[cfg(feature = "user")]
+unsafe impl aya::Pod for ProcessLabels {}
+#[cfg(feature = "user")]
+unsafe impl aya::Pod for NtEvent {}
+
+#[cfg(feature = "user")]
 pub mod user {
     use super::*;
 

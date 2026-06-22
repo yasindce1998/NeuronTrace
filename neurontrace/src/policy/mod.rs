@@ -2,4 +2,4 @@ mod parser;
 mod types;
 
 pub use parser::load_policy;
-pub use types::{PolicyRule, PolicySet};
+pub use types::PolicySet;
