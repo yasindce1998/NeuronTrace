@@ -33,8 +33,11 @@ async fn main() -> Result<()> {
             cgroup,
             feedback: feedback_path,
             audit_only,
+            dry_run,
         } => {
-            preflight::check()?;
+            if !dry_run {
+                preflight::check()?;
+            }
 
             let policy = policy.or(defaults.policy).ok_or_else(|| {
                 anyhow::anyhow!(
@@ -58,6 +61,15 @@ async fn main() -> Result<()> {
 
             if audit_only {
                 info!("AUDIT-ONLY mode: all enforcement actions overridden to audit");
+            }
+
+            if dry_run {
+                println!("Dry-run complete — configuration and policy valid");
+                println!("  Policy: {} ({} rules)", policy.display(), policy_set.rules.len());
+                println!("  Cgroup: {}", cgroup.display());
+                println!("  Feedback: {}", feedback_path.display());
+                println!("  Audit-only: {}", audit_only);
+                return Ok(());
             }
 
             info!("attaching to cgroup {}", cgroup.display());

@@ -24,8 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Structured JSON feedback delivery via Unix socket or JSONL file
 - `--audit-only` mode for observing agent behavior without blocking
 - CLI with `run`, `validate`, `bump`, `unload`, and `status` commands
+- `--dry-run` flag for `run` command — validates config and policy without root or BPF loading
+- Config resolution: CLI flags → env vars (`NEURONTRACE_POLICY`, `NEURONTRACE_CGROUP`, `NEURONTRACE_FEEDBACK`) → `/etc/neurontrace/config.yaml` → defaults
+- Graceful shutdown via Ctrl+C (BPF programs remain pinned for continued enforcement)
 - Single-command demo script (`scripts/demo.sh`)
-- Unit tests for policy parsing and glob matching
+- Unit tests for policy parsing, glob matching, and config resolution
 - GitHub Actions release workflow for pre-built binaries (x86_64 + aarch64)
 - Architecture documentation, development guide, and quickstart
 

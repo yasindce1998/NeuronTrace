@@ -31,6 +31,10 @@ pub enum Command {
         /// Audit-only mode: observe without enforcing (all actions become audit)
         #[arg(long)]
         audit_only: bool,
+
+        /// Dry-run: validate config and policy without loading BPF programs
+        #[arg(long)]
+        dry_run: bool,
     },
 
     /// Validate a policy file without loading BPF

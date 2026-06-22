@@ -130,6 +130,26 @@ sudo ./scripts/demo.sh policies/codex.yaml
 sudo ./scripts/demo.sh policies/generic-agent.yaml
 ```
 
+## Dry-run (validate everything without BPF)
+
+Test your full configuration — policy, cgroup, feedback path — without needing root or loading BPF programs:
+
+```bash
+cargo run --package neurontrace -- run \
+  --policy policies/claude-code.yaml \
+  --cgroup /sys/fs/cgroup/my-agent \
+  --dry-run
+```
+
+Output:
+```
+Dry-run complete — configuration and policy valid
+  Policy: policies/claude-code.yaml (12 rules)
+  Cgroup: /sys/fs/cgroup/my-agent
+  Feedback: /run/neurontrace/feedback.sock
+  Audit-only: false
+```
+
 ## Validate a policy without root
 
 No kernel needed — just checks syntax:
