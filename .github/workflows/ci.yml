@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -Dwarnings
+
+jobs:
+  check-userspace:
+    name: Check userspace crates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: userspace
+
+      - name: Check neurontrace-common
+        run: cargo check --package neurontrace-common --features user
+
+      - name: Check neurontrace (userspace)
+        run: cargo check --package neurontrace
+
+      - name: Check xtask
+        run: cargo check --package xtask
+
+  check-ebpf:
+    name: Check eBPF crate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ebpf
+
+      - name: Install bpf-linker
+        run: cargo install bpf-linker
+
+      - name: Build eBPF programs
+        run: |
+          cargo +nightly build \
+            --package neurontrace-ebpf \
+            --target bpfel-unknown-none \
+            -Z build-std=core
+
+  fmt:
+    name: Formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
+
+      - name: Check formatting (all crates)
+        run: cargo +nightly fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: clippy
+
+      - name: Clippy (neurontrace-common)
+        run: cargo clippy --package neurontrace-common --features user -- -D warnings
+
+      - name: Clippy (neurontrace)
+        run: cargo clippy --package neurontrace -- -D warnings
+
+      - name: Clippy (xtask)
+        run: cargo clippy --package xtask -- -D warnings
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: test
+
+      - name: Run tests
+        run: cargo test --package neurontrace-common --features user --package neurontrace --package xtask
