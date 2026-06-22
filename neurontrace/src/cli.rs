@@ -16,17 +16,17 @@ pub struct Cli {
 pub enum Command {
     /// Start enforcement with the given policy and cgroup
     Run {
-        /// Path to the YAML policy file
+        /// Path to the YAML policy file (or set NEURONTRACE_POLICY)
         #[arg(short, long)]
-        policy: PathBuf,
+        policy: Option<PathBuf>,
 
-        /// Path to the cgroup (e.g. /sys/fs/cgroup/neurontrace)
+        /// Path to the cgroup (or set NEURONTRACE_CGROUP)
         #[arg(short, long)]
-        cgroup: PathBuf,
+        cgroup: Option<PathBuf>,
 
         /// Unix socket or file path for structured violation feedback
-        #[arg(long, default_value = "/run/neurontrace/feedback.sock")]
-        feedback: PathBuf,
+        #[arg(long)]
+        feedback: Option<PathBuf>,
 
         /// Audit-only mode: observe without enforcing (all actions become audit)
         #[arg(long)]
@@ -35,9 +35,9 @@ pub enum Command {
 
     /// Validate a policy file without loading BPF
     Validate {
-        /// Path to the YAML policy file
+        /// Path to the YAML policy file (or set NEURONTRACE_POLICY)
         #[arg(short, long)]
-        policy: PathBuf,
+        policy: Option<PathBuf>,
     },
 
     /// Bump the generation counter, invalidating all stale labels

@@ -1,13 +1,16 @@
 mod bpf;
 mod cgroup;
 mod cli;
+mod config;
 mod events;
 mod feedback;
 mod labels;
 mod policy;
+mod preflight;
 
 use anyhow::Result;
 use clap::Parser;
+use tokio::signal;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -22,6 +25,7 @@ async fn main() -> Result<()> {
         .init();
 
     let cli = Cli::parse();
+    let defaults = config::Config::load();
 
     match cli.command {
         Command::Run {
@@ -30,6 +34,24 @@ async fn main() -> Result<()> {
             feedback: feedback_path,
             audit_only,
         } => {
+            preflight::check()?;
+
+            let policy = policy.or(defaults.policy).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "no policy specified: use --policy or set NEURONTRACE_POLICY env var"
+                )
+            })?;
+            let cgroup = cgroup.or(defaults.cgroup).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "no cgroup specified: use --cgroup or set NEURONTRACE_CGROUP env var"
+                )
+            })?;
+            let feedback_path = feedback_path.unwrap_or_else(|| {
+                defaults
+                    .feedback
+                    .unwrap_or_else(|| "/run/neurontrace/feedback.sock".into())
+            });
+
             info!("loading policy from {}", policy.display());
             let policy_set = policy::load_policy(&policy)?;
             let compiled = policy_set.compile();
@@ -49,11 +71,24 @@ async fn main() -> Result<()> {
             let mut feedback_sender = feedback::FeedbackSender::new(&feedback_path);
 
             info!("neurontrace enforcement active — default-deny enabled");
-            engine
-                .run_event_loop(&mut feedback_sender, Some(&compiled))
-                .await?;
+
+            tokio::select! {
+                result = engine.run_event_loop(&mut feedback_sender, Some(&compiled)) => {
+                    result?;
+                }
+                _ = signal::ctrl_c() => {
+                    info!("received SIGINT — shutting down gracefully");
+                    println!("NeuronTrace stopping (BPF programs remain pinned — use `unload` to remove)");
+                }
+            }
         }
         Command::Validate { policy } => {
+            let policy = policy.or(defaults.policy).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "no policy specified: use --policy or set NEURONTRACE_POLICY env var"
+                )
+            })?;
+
             info!("validating policy: {}", policy.display());
             let policy_set = policy::load_policy(&policy)?;
             println!(
@@ -72,6 +107,7 @@ async fn main() -> Result<()> {
             }
         }
         Command::Bump => {
+            preflight::check()?;
             info!("bumping generation counter");
             let mut engine = bpf::BpfEngine::new()?;
             engine.load_and_attach()?;
@@ -79,6 +115,7 @@ async fn main() -> Result<()> {
             println!("Generation bumped to {new_gen}");
         }
         Command::Unload => {
+            preflight::check_root()?;
             info!("unloading pinned BPF programs");
             bpf::BpfEngine::unload()?;
             println!("NeuronTrace enforcement stopped — BPF programs unpinned");

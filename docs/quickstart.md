@@ -156,6 +156,35 @@ cargo run --package neurontrace -- validate --policy policies/claude-code.yaml
 
 The agent never knew NeuronTrace existed. There's nothing to bypass — no userspace sandbox, no prompt to jailbreak. The kernel said no.
 
+## Configuration
+
+NeuronTrace resolves settings in order: CLI flags → environment variables → config file → defaults.
+
+### Environment variables
+
+| Variable | Description |
+|----------|-------------|
+| `NEURONTRACE_POLICY` | Default policy file path |
+| `NEURONTRACE_CGROUP` | Default cgroup path |
+| `NEURONTRACE_FEEDBACK` | Feedback socket/file path |
+
+```bash
+# Run with env vars instead of flags
+export NEURONTRACE_POLICY=/etc/neurontrace/policy.yaml
+export NEURONTRACE_CGROUP=/sys/fs/cgroup/my-agent
+sudo neurontrace run
+```
+
+### Config file
+
+Place a YAML config at `/etc/neurontrace/config.yaml`:
+
+```yaml
+policy: /etc/neurontrace/policy.yaml
+cgroup: /sys/fs/cgroup/neurontrace
+feedback: /run/neurontrace/feedback.sock
+```
+
 ## Next steps
 
 | Want to... | Read |
