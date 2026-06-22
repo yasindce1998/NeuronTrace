@@ -7,7 +7,7 @@ fn main() {
     let stub_path = out_dir.join("neurontrace-ebpf");
 
     if !stub_path.exists() {
-        fs::write(&stub_path, &[0x7f, 0x45, 0x4c, 0x46]).unwrap();
+        fs::write(&stub_path, [0x7f, 0x45, 0x4c, 0x46]).unwrap();
     }
 
     println!("cargo::rerun-if-changed=build.rs");
