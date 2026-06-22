@@ -21,6 +21,7 @@ fn get_cgroup_id(path: &Path) -> Result<u64> {
     Ok(meta.ino())
 }
 
+#[allow(dead_code)]
 pub fn add_pid_to_cgroup(cgroup_path: &Path, pid: u32) -> Result<()> {
     let procs_file = cgroup_path.join("cgroup.procs");
     fs::write(&procs_file, pid.to_string()).with_context(|| {

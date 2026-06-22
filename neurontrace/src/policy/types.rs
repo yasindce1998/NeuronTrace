@@ -4,6 +4,7 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 pub struct PolicySet {
     pub name: String,
+    #[allow(dead_code)]
     pub description: String,
     pub rules: Vec<PolicyRule>,
 }
@@ -28,6 +29,7 @@ pub struct PolicyRule {
     #[serde(default)]
     pub cgroup_id: u64,
     #[serde(default)]
+    #[allow(dead_code)]
     pub description: String,
 }
 

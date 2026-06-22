@@ -6,6 +6,7 @@ use aya::Ebpf;
 use neurontrace_common::{LabelEntry, ProcessLabels, MAX_LABELS_PER_PROCESS, MAX_LABEL_LEN};
 use tracing::info;
 
+#[allow(dead_code)]
 pub fn assign_label(bpf: &mut Ebpf, pid: u32, label: &str, generation: u32) -> Result<()> {
     let mut label_map: HashMap<_, u32, ProcessLabels> =
         HashMap::try_from(bpf.map_mut("LABEL_MAP").context("LABEL_MAP not found")?)?;
@@ -44,6 +45,7 @@ pub fn assign_label(bpf: &mut Ebpf, pid: u32, label: &str, generation: u32) -> R
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn clear_labels(bpf: &mut Ebpf, pid: u32) -> Result<()> {
     let mut label_map: HashMap<_, u32, ProcessLabels> =
         HashMap::try_from(bpf.map_mut("LABEL_MAP").context("LABEL_MAP not found")?)?;
