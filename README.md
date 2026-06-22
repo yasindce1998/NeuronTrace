@@ -38,7 +38,18 @@ NeuronTrace enforces **default-deny** policies on AI agent processes at the kern
 # Build everything
 cargo xtask build --release
 
-# Run with a starter policy
+# See enforcement in action — one command, handles everything
+sudo ./scripts/demo.sh
+```
+
+The demo creates a cgroup, starts NeuronTrace, runs test commands that get blocked by the kernel, shows the violation log, and cleans up. No second terminal needed.
+
+**[Full quickstart guide →](docs/quickstart.md)**
+
+### Manual usage
+
+```bash
+# Run with a specific policy
 sudo ./target/release/neurontrace run \
   --policy policies/claude-code.yaml \
   --cgroup /sys/fs/cgroup/neurontrace
@@ -87,6 +98,18 @@ rules:
 Actions: `allow`, `block`, `kill`, `audit`
 
 Event types: `exec`, `open`, `unlink`, `rename`, `connect`, `ptrace`
+
+## Documentation
+
+| Doc | Description |
+|-----|-------------|
+| **[Quick Start](docs/quickstart.md)** | See enforcement in one command |
+| [Policy Reference](docs/policies.md) | Schema, event types, actions, examples |
+| [Use Cases](docs/usecases.md) | 8 real-world scenarios with ready-to-use policies |
+| [Development Guide](docs/development.md) | Kernel setup, building, VM testing, debugging |
+| [Contributing](CONTRIBUTING.md) | How to contribute, code style, CI |
+| [Security Policy](SECURITY.md) | Reporting vulnerabilities |
+| [Changelog](CHANGELOG.md) | What's changed |
 
 ## License
 
