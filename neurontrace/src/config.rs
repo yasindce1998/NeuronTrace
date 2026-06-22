@@ -85,10 +85,7 @@ mod tests {
             config.policy.unwrap(),
             PathBuf::from("/tmp/test-policy.yaml")
         );
-        assert_eq!(
-            config.cgroup.unwrap(),
-            PathBuf::from("/sys/fs/cgroup/test")
-        );
+        assert_eq!(config.cgroup.unwrap(), PathBuf::from("/sys/fs/cgroup/test"));
         assert_eq!(
             config.feedback.unwrap(),
             PathBuf::from("/tmp/feedback.sock")
@@ -115,14 +112,8 @@ mod tests {
             file.policy.unwrap(),
             PathBuf::from("/etc/neurontrace/policy.yaml")
         );
-        assert_eq!(
-            file.cgroup.unwrap(),
-            PathBuf::from("/sys/fs/cgroup/nt")
-        );
-        assert_eq!(
-            file.feedback.unwrap(),
-            PathBuf::from("/run/nt/fb.sock")
-        );
+        assert_eq!(file.cgroup.unwrap(), PathBuf::from("/sys/fs/cgroup/nt"));
+        assert_eq!(file.feedback.unwrap(), PathBuf::from("/run/nt/fb.sock"));
     }
 
     #[test]
@@ -138,4 +129,3 @@ mod tests {
         assert!(file.feedback.is_none());
     }
 }
-
