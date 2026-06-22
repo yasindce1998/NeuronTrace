@@ -81,9 +81,18 @@ mod tests {
         let mut config = Config::default();
         config.apply_env();
 
-        assert_eq!(config.policy.unwrap(), PathBuf::from("/tmp/test-policy.yaml"));
-        assert_eq!(config.cgroup.unwrap(), PathBuf::from("/sys/fs/cgroup/test"));
-        assert_eq!(config.feedback.unwrap(), PathBuf::from("/tmp/feedback.sock"));
+        assert_eq!(
+            config.policy.unwrap(),
+            PathBuf::from("/tmp/test-policy.yaml")
+        );
+        assert_eq!(
+            config.cgroup.unwrap(),
+            PathBuf::from("/sys/fs/cgroup/test")
+        );
+        assert_eq!(
+            config.feedback.unwrap(),
+            PathBuf::from("/tmp/feedback.sock")
+        );
 
         std::env::remove_var("NEURONTRACE_POLICY");
         std::env::remove_var("NEURONTRACE_CGROUP");
@@ -95,18 +104,25 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("config.yaml");
         let mut f = std::fs::File::create(&path).unwrap();
-        writeln!(
-            f,
-            "policy: /etc/neurontrace/policy.yaml\ncgroup: /sys/fs/cgroup/nt\nfeedback: /run/nt/fb.sock"
-        )
-        .unwrap();
+        writeln!(f, "policy: /etc/neurontrace/policy.yaml").unwrap();
+        writeln!(f, "cgroup: /sys/fs/cgroup/nt").unwrap();
+        writeln!(f, "feedback: /run/nt/fb.sock").unwrap();
 
         let content = std::fs::read_to_string(&path).unwrap();
         let file: ConfigFile = serde_yaml::from_str(&content).unwrap();
 
-        assert_eq!(file.policy.unwrap(), PathBuf::from("/etc/neurontrace/policy.yaml"));
-        assert_eq!(file.cgroup.unwrap(), PathBuf::from("/sys/fs/cgroup/nt"));
-        assert_eq!(file.feedback.unwrap(), PathBuf::from("/run/nt/fb.sock"));
+        assert_eq!(
+            file.policy.unwrap(),
+            PathBuf::from("/etc/neurontrace/policy.yaml")
+        );
+        assert_eq!(
+            file.cgroup.unwrap(),
+            PathBuf::from("/sys/fs/cgroup/nt")
+        );
+        assert_eq!(
+            file.feedback.unwrap(),
+            PathBuf::from("/run/nt/fb.sock")
+        );
     }
 
     #[test]
@@ -114,7 +130,10 @@ mod tests {
         let content = "policy: /etc/neurontrace/policy.yaml\n";
         let file: ConfigFile = serde_yaml::from_str(content).unwrap();
 
-        assert_eq!(file.policy.unwrap(), PathBuf::from("/etc/neurontrace/policy.yaml"));
+        assert_eq!(
+            file.policy.unwrap(),
+            PathBuf::from("/etc/neurontrace/policy.yaml")
+        );
         assert!(file.cgroup.is_none());
         assert!(file.feedback.is_none());
     }

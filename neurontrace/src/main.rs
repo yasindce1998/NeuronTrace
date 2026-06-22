@@ -65,7 +65,11 @@ async fn main() -> Result<()> {
 
             if dry_run {
                 println!("Dry-run complete — configuration and policy valid");
-                println!("  Policy: {} ({} rules)", policy.display(), policy_set.rules.len());
+                println!(
+                    "  Policy: {} ({} rules)",
+                    policy.display(),
+                    policy_set.rules.len()
+                );
                 println!("  Cgroup: {}", cgroup.display());
                 println!("  Feedback: {}", feedback_path.display());
                 println!("  Audit-only: {}", audit_only);
