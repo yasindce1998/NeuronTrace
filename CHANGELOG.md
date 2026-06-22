@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.0] - 2025-06-22
 
 ### Added
 
@@ -32,10 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Single-command demo script (`scripts/demo.sh`)
 - Unit tests for policy parsing, glob matching, and config resolution
 - GitHub Actions release workflow for pre-built binaries (x86_64 + aarch64)
+- Agent adapter scripts for Claude Code, Codex, Gemini CLI, and generic fallback
 - Architecture documentation, development guide, and quickstart
 
 ### Fixed
 
 - BPF stack overflow in all hooks — eliminated intermediate 256-byte buffers by writing directly into ring buffer
 
-[Unreleased]: https://github.com/yasindce1998/NeuronTrace/compare/main...HEAD
+[0.1.0]: https://github.com/yasindce1998/NeuronTrace/commits/v0.1.0
